@@ -1,0 +1,10 @@
+.godot/
+*.uid
+.venv/
+__pycache__/
+data/
+build/
+.tools/
+*.log
+artifacts/
+.DS_Store
