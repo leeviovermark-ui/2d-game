@@ -30,6 +30,9 @@ func connect_server(url: String, auth: Dictionary) -> void:
 		status_changed.emit("Connecting to your world…")
 
 func _process(_delta: float) -> void:
+	poll()
+
+func poll() -> void:
 	if not socket:
 		return
 	socket.poll()
@@ -46,7 +49,8 @@ func _process(_delta: float) -> void:
 				packet.emit(data)
 	elif state == WebSocketPeer.STATE_CLOSED:
 		connected = false
-		status_changed.emit("Disconnected. Your saved progress is safe. Sign in to reconnect.")
+		var reason := socket.get_close_reason()
+		status_changed.emit("Disconnected. " + (reason if not reason.is_empty() else "Sign in to reconnect. Your progress is saved."))
 		socket = null
 	elif not was_open and Time.get_ticks_msec() / 1000.0 > deadline:
 		socket.close()
@@ -60,7 +64,7 @@ func action(kind: String, data: Dictionary = {}) -> void:
 	# Godot JSON decoding represents numbers as floats. Restore protocol integer
 	# fields explicitly; the server deliberately rejects fractional quantities.
 	data = data.duplicate(true)
-	for field in ["x","y","slot","from","to","count","revision"]:
+	for field in ["x","y","slot","from","to","count","revision","minutes"]:
 		if data.has(field): data[field] = int(data[field])
 	if data.has("offer"):
 		for item in data.offer: data.offer[item] = int(data.offer[item])

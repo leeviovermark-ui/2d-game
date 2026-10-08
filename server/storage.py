@@ -1,11 +1,12 @@
 """SQLite WAL store: changed tiles, crop timestamps, accounts, and atomic economy."""
+import asyncio
 import hashlib
 import hmac
 import json
 import secrets
 import sqlite3
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from .inventory import require, starter
 from .world import World
@@ -39,7 +40,17 @@ class Store:
             CREATE TABLE IF NOT EXISTS requests(account TEXT, request TEXT, created REAL, PRIMARY KEY(account,request));
             CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, created REAL, kind TEXT, actors TEXT, details TEXT);
         ''')
-        require(self.db.execute('SELECT version FROM schema_version').fetchone()[0] == 1, 'Unsupported database schema.')
+        version = self.db.execute('SELECT version FROM schema_version').fetchone()[0]
+        require(version in (1, 2), 'Unsupported database schema.')
+        # Additive migration: existing worlds, accounts, sessions and economy remain intact.
+        self.db.executescript('''
+            CREATE TABLE IF NOT EXISTS admin_roles(account TEXT PRIMARY KEY REFERENCES accounts(id), created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS pending_admins(username TEXT PRIMARY KEY COLLATE NOCASE);
+            CREATE TABLE IF NOT EXISTS moderation(account TEXT PRIMARY KEY REFERENCES accounts(id),
+                ban_reason TEXT, ban_by TEXT, banned REAL, muted_until REAL NOT NULL DEFAULT 0, muted_by TEXT);
+            UPDATE schema_version SET version=2;
+        ''')
+        self._local_owner_enabled = False
         self.db.execute('DELETE FROM sessions WHERE expires < ?', (time.time(),))
         self.db.execute('DELETE FROM requests WHERE created < ?', (time.time() - 30*86400,))
         if not self.db.execute('SELECT 1 FROM worlds WHERE name="NEXUS"').fetchone():
@@ -60,30 +71,136 @@ class Store:
                 'This request was already processed.')
         self.db.execute('INSERT INTO requests VALUES(?,?,?)', (account, request, time.time()))
 
-    def authenticate(self, username, password, register=False):
+    @staticmethod
+    def _password_digest(password, salt):
+        """CPU work only: safe on a worker thread; never touch the SQLite store."""
+        return hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
+
+    def _prepare_authentication(self, username, register):
         row = self.db.execute('SELECT id,salt,password FROM accounts WHERE username=? COLLATE NOCASE', (username,)).fetchone()
         if register:
             require(row is None, 'That explorer name is already taken.')
             salt = secrets.token_hex(16)
-            digest = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
-            ident = secrets.token_hex(12)
-            self.db.execute('INSERT INTO accounts VALUES(?,?,?,?,?,?,?,?,?,?)',
-                            (ident, username, salt, digest, encode(starter()), 'NEXUS', 11.5, 19.4, 0, time.time()))
         else:
             # Always do the expensive hash, including for unknown names.
             salt = row[1] if row else '00'*16
-            digest = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
-            require(row is not None and hmac.compare_digest(digest, row[2]), 'Incorrect explorer name or password.')
-            ident = row[0]
-        token = secrets.token_urlsafe(32)
-        self.db.execute('INSERT INTO sessions VALUES(?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), ident, time.time()+30*86400))
+        return {'username': username, 'register': register, 'row': row, 'salt': salt}
+
+    def _finish_authentication(self, plan, digest):
+        # Finalization has no await. Recheck account state after an async hash so
+        # concurrent registrations and moderation cannot use a stale lookup.
+        with nullcontext() if self.db.in_transaction else self.transaction():
+            username, expected = plan['username'], plan['row']
+            current = self.db.execute('SELECT id,salt,password FROM accounts WHERE username=? COLLATE NOCASE', (username,)).fetchone()
+            if plan['register']:
+                require(current is None, 'That explorer name is already taken.')
+                ident = secrets.token_hex(12)
+                self.db.execute('INSERT INTO accounts VALUES(?,?,?,?,?,?,?,?,?,?)',
+                                (ident, username, plan['salt'], digest, encode(starter()), 'NEXUS', 11.5, 19.4, 0, time.time()))
+                pending = self.db.execute('SELECT 1 FROM pending_admins WHERE username=? COLLATE NOCASE', (username,)).fetchone()
+                if pending or (self._local_owner_enabled and not self.has_admins()):
+                    self._add_admin(ident, 'named_bootstrap' if pending else 'local_owner')
+            else:
+                require(expected is not None and current is not None and expected[:2] == current[:2]
+                        and hmac.compare_digest(digest, current[2]), 'Incorrect explorer name or password.')
+                ident = current[0]
+            self.assert_not_banned(ident)
+            token = secrets.token_urlsafe(32)
+            self.db.execute('INSERT INTO sessions VALUES(?,?,?)',
+                            (hashlib.sha256(token.encode()).hexdigest(), ident, time.time()+30*86400))
         return ident, token
+
+    def authenticate(self, username, password, register=False):
+        plan = self._prepare_authentication(username, register)
+        return self._finish_authentication(plan, self._password_digest(password, plan['salt']))
+
+    async def authenticate_async(self, username, password, register=False):
+        plan = self._prepare_authentication(username, register)
+        digest = await asyncio.to_thread(self._password_digest, password, plan['salt'])
+        return self._finish_authentication(plan, digest)
 
     def resume(self, token):
         row = self.db.execute('SELECT account FROM sessions WHERE token=? AND expires>?',
                               (hashlib.sha256(token.encode()).hexdigest(), time.time())).fetchone()
         require(row is not None, 'Session expired. Sign in again.')
+        self.assert_not_banned(row[0])
         return row[0]
+
+    def has_admins(self):
+        return bool(self.db.execute('SELECT 1 FROM admin_roles LIMIT 1').fetchone()
+                    or self.db.execute('SELECT 1 FROM pending_admins LIMIT 1').fetchone())
+
+    def _add_admin(self, ident, source):
+        if not self.is_admin(ident):
+            self.db.execute('INSERT INTO admin_roles VALUES(?,?)', (ident, time.time()))
+            self.audit('admin_bootstrap', [ident], {'source': source})
+
+    def configure_admins(self, names=(), local_owner=False):
+        """Explicit server bootstrap; never derive authorization from client packets.
+
+        The caller enables local_owner only for a loopback listener. Named admins
+        persist, including a name whose account has not yet been registered.
+        """
+        import re
+        require(type(local_owner) is bool, 'Invalid server owner configuration.')
+        require(isinstance(names, (list, tuple)), 'Invalid admin names.')
+        require(all(isinstance(name, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{2,19}', name)
+                    for name in names), 'Admin names: 3–20 letters, numbers, underscores.')
+        with self.transaction():
+            for name in names:
+                self.db.execute('INSERT OR IGNORE INTO pending_admins VALUES(?)', (name,))
+                row = self.db.execute('SELECT id FROM accounts WHERE username=? COLLATE NOCASE', (name,)).fetchone()
+                if row:
+                    self._add_admin(row[0], 'named_bootstrap')
+            if local_owner and not self.has_admins():
+                row = self.db.execute('SELECT id FROM accounts ORDER BY created,id LIMIT 1').fetchone()
+                if row:
+                    self._add_admin(row[0], 'local_owner')
+        self._local_owner_enabled = local_owner
+
+    def is_admin(self, ident):
+        return self.db.execute('SELECT 1 FROM admin_roles WHERE account=?', (ident,)).fetchone() is not None
+
+    def assert_not_banned(self, ident):
+        row = self.db.execute('SELECT ban_reason FROM moderation WHERE account=?', (ident,)).fetchone()
+        require(row is None or row[0] is None, 'This account is banned from this server.')
+
+    def is_muted(self, ident, now=None):
+        row = self.db.execute('SELECT muted_until FROM moderation WHERE account=?', (ident,)).fetchone()
+        return row is not None and row[0] > (time.time() if now is None else now)
+
+    def account(self, target):
+        require(isinstance(target, str) and 1 <= len(target) <= 64, 'Choose an explorer.')
+        # ID wins over a username; usernames are case-insensitive.
+        row = self.db.execute('SELECT id,username FROM accounts WHERE id=?', (target,)).fetchone()
+        if row is None:
+            row = self.db.execute('SELECT id,username FROM accounts WHERE username=? COLLATE NOCASE', (target,)).fetchone()
+        require(row is not None, 'Explorer not found.')
+        return {'id': row[0], 'name': row[1]}
+
+    def admin_accounts(self, now=None):
+        now = time.time() if now is None else now
+        rows = self.db.execute('''SELECT a.id,a.username,a.world,r.account,m.ban_reason,m.muted_until
+            FROM accounts a LEFT JOIN admin_roles r ON r.account=a.id
+            LEFT JOIN moderation m ON m.account=a.id ORDER BY a.username COLLATE NOCASE LIMIT 200''')
+        return [{'id': ident, 'name': name, 'world': world, 'admin': role is not None,
+                 'banned': reason is not None, 'ban_reason': reason or '',
+                 'muted': (until or 0) > now, 'muted_until': until or 0}
+                for ident, name, world, role, reason, until in rows]
+
+    def ban_account(self, ident, actor, reason, now=None):
+        self.db.execute('''INSERT INTO moderation(account,ban_reason,ban_by,banned) VALUES(?,?,?,?)
+            ON CONFLICT(account) DO UPDATE SET ban_reason=excluded.ban_reason,ban_by=excluded.ban_by,banned=excluded.banned''',
+            (ident, reason, actor, time.time() if now is None else now))
+        self.db.execute('DELETE FROM sessions WHERE account=?', (ident,))
+
+    def unban_account(self, ident):
+        self.db.execute('UPDATE moderation SET ban_reason=NULL,ban_by=NULL,banned=NULL WHERE account=?', (ident,))
+
+    def mute_account(self, ident, actor, until):
+        self.db.execute('''INSERT INTO moderation(account,muted_until,muted_by) VALUES(?,?,?)
+            ON CONFLICT(account) DO UPDATE SET muted_until=excluded.muted_until,muted_by=excluded.muted_by''',
+            (ident, until, actor))
 
     def player(self, ident):
         row = self.db.execute('SELECT username,inventory,world,x,y,selected FROM accounts WHERE id=?', (ident,)).fetchone()

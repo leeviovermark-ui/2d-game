@@ -30,6 +30,8 @@ class AuthorityTests(unittest.TestCase):
 
     def cmd(self, actor, kind, **data):
         self.now += .2
+        if kind in ('trade_offer', 'trade_lock', 'trade_confirm', 'trade_cancel'):
+            data.setdefault('trade_id', self.p(actor)['trade'])
         self.game.command(actor, {'type': kind, 'request': uuid.uuid4().hex, **data})
 
     def p(self, actor=None):
@@ -280,6 +282,9 @@ class AuthorityTests(unittest.TestCase):
         self.assertEqual(self.p()['inventory'],before_a)
         self.assertEqual(self.p(self.b)['inventory'],before_b)
         self.assertEqual(self.store.db.execute('SELECT count(*) FROM audit WHERE kind="trade"').fetchone()[0],0)
+        self.assertIsNone(self.p()['trade'])
+        self.assertIsNone(self.p(self.b)['trade'])
+        self.assertFalse(self.game.trades)
         self.cmd(self.a,'trade_cancel')
         self.assertFalse(self.game.trades)
 

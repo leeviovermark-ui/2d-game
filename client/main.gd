@@ -6,7 +6,6 @@ var network
 var landscape
 var ui
 var audio
-var input_elapsed := 0.0
 var jump_pending := false
 var mining_target := Vector2i(-1,-1)
 var playing := false
@@ -60,14 +59,6 @@ func _process(delta: float) -> void:
 	if not playing or not network.connected:
 		return
 	landscape.target = landscape.tile_at_mouse() if landscape.get_global_rect().has_point(landscape.get_global_mouse_position()) and not ui.modal else Vector2i(-1,-1)
-	input_elapsed += delta
-	if input_elapsed >= .033:
-		input_elapsed = 0
-		var axis := 0
-		if not focused() and not ui.modal:
-			axis = int(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))-int(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
-		network.send({"type":"input","axis":axis,"jump":jump_pending and not focused() and not ui.modal})
-		jump_pending = false
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not ui.modal and not focused() and landscape.target.x >= 0 and get_viewport().gui_get_hovered_control() == null:
 		if landscape.target != mining_target and state.tiles.has(landscape.target):
 			mining_target = landscape.target
@@ -75,6 +66,25 @@ func _process(delta: float) -> void:
 	elif mining_target.x >= 0:
 		mining_target = Vector2i(-1,-1)
 		network.action("mine_cancel")
+
+func _physics_process(_delta: float) -> void:
+	if network: network.poll()
+	if not playing or not network.connected: return
+	var active: bool = not focused() and not ui.modal
+	var axis := 0
+	var held := false
+	if active:
+		axis = int(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))-int(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
+		held = Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
+	var intent := state.predict({"axis":axis, "jump":jump_pending and active, "jump_held":held})
+	network.send(intent.merged({"type":"input"}))
+	jump_pending = false
+
+func _input(event: InputEvent) -> void:
+	if playing and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		ui.close_modal()
+		get_viewport().gui_release_focus()
+		get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not playing:
@@ -110,18 +120,22 @@ func on_packet(data: Dictionary) -> void:
 		"welcome":
 			state.player_id = data.id
 			state.player_name = data.name
+			state.is_admin = data.get("admin", false)
+			jump_pending = false
 			state.inventory = data.slots
 			state.selected = int(data.selected)
 			state.server_offset = float(data.server_time)-Time.get_unix_time_from_system()
-			state.load_world(data.world)
+			state.load_world(data.world, data.get("player", {}))
 			state.trade = {}
 			playing = true
 			landscape.landing = false
 			ui.save_session(data.token,network.endpoint)
 			ui.show_game(true)
+			if state.is_admin: ui.append_chat("Server", "Administrator access: type /addomen in chat to open your tools.")
 		"world":
-			state.load_world(data.world)
+			state.load_world(data.world, data.get("player", {}))
 			mining_target = Vector2i(-1,-1)
+			jump_pending = false
 			ui.close_modal()
 			landscape.camera = Vector2(0,105)
 		"players":
@@ -148,7 +162,9 @@ func on_packet(data: Dictionary) -> void:
 				audio.play("place")
 			ui.update_notes()
 		"drop": state.drops[data.drop.id] = data.drop
-		"drop_removed": state.drops.erase(data.id); audio.play("collect")
+		"drop_removed":
+			state.drops.erase(data.id)
+			if data.get("collector") == state.player_id: audio.play("collect")
 		"metadata": state.meta = data.meta
 		"departure": state.players.erase(data.id); state.display_positions.erase(data.id)
 		"chat": ui.append_chat(data.name,data.text)
@@ -166,6 +182,8 @@ func on_packet(data: Dictionary) -> void:
 			if state.storage.get("x") == data.x and state.storage.get("y") == data.y:
 				state.storage = data
 				if ui.modal_kind == "storage": ui.refresh_storage()
+		"admin_panel": ui.open_admin(data)
+		"admin_state": ui.refresh_admin(data)
 		"open_craft": ui.open_craft()
 		"open_permissions": state.meta = data.meta; ui.open_permissions()
 		"trade_invite": ui.show_invite(data)

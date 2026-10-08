@@ -3,7 +3,14 @@ from copy import deepcopy
 import math
 import secrets
 from .definitions import ITEMS
-from .inventory import require, integer, quantity, remove, add
+from .inventory import Rejected, require, integer, quantity, remove, add
+
+
+class TradeInvalid(Rejected):
+    """The final exchange failed; cancel this trade after transaction rollback."""
+    def __init__(self, message, trade_id):
+        super().__init__(message)
+        self.trade_id = trade_id
 
 
 class Trading:
@@ -14,7 +21,8 @@ class Trading:
         return a['world'] == b['world'] and math.hypot(a['x']-b['x'], a['y']-b['y']) < 7
 
     def trade_request(self, p, d):
-        other = self.game.players.get(d.get('player'))
+        require(isinstance(d.get('player'), str), 'Choose an explorer to trade with.')
+        other = self.game.players.get(d['player'])
         require(other is not None and other != p and self.nearby(p, other), 'Find an explorer within seven tiles.')
         require(not p['trade'] and not other['trade'], 'An explorer is already trading.')
         require(self.game.clock()-p.get('last_invite', 0) >= 2, 'Please wait before inviting again.')
@@ -37,9 +45,11 @@ class Trading:
         del self.game.invites[p['id']]
         self.send_trade(trade)
 
-    def get_trade(self, p):
+    def get_trade(self, p, d):
         trade = self.game.trades.get(p['trade'])
         require(trade is not None, 'No active trade.')
+        require(p['id'] in trade['players'] and d.get('trade_id') == trade['id'],
+                'This trade has ended. Review your current trade.')
         return trade
 
     def send_trade(self, trade):
@@ -47,7 +57,7 @@ class Trading:
             self.game.emit(ident, 'trade', trade=deepcopy(trade))
 
     def trade_offer(self, p, d):
-        trade = self.get_trade(p)
+        trade = self.get_trade(p, d)
         offer = d.get('offer')
         require(isinstance(offer, dict) and len(offer) <= 12, 'Offer at most twelve item types.')
         for item, n in offer.items():
@@ -60,36 +70,45 @@ class Trading:
         self.send_trade(trade)
 
     def trade_lock(self, p, d):
-        trade = self.get_trade(p)
-        require(d.get('revision') == trade['revision'], 'Offer changed. Review it again.')
+        trade = self.get_trade(p, d)
+        require(type(d.get('revision')) is int and d['revision'] == trade['revision'], 'Offer changed. Review it again.')
         if p['id'] not in trade['locked']:
             trade['locked'].append(p['id'])
         self.send_trade(trade)
 
     def trade_confirm(self, p, d):
-        trade = self.get_trade(p)
-        require(d.get('revision') == trade['revision'] and len(trade['locked']) == 2, 'Both explorers must lock the current offers.')
+        trade = self.get_trade(p, d)
+        require(type(d.get('revision')) is int and d['revision'] == trade['revision'] and len(trade['locked']) == 2,
+                'Both explorers must lock the current offers.')
         if p['id'] not in trade['confirmed']:
             trade['confirmed'].append(p['id'])
         if len(trade['confirmed']) < 2:
             self.send_trade(trade)
             return
-        a, b = [self.game.players.get(i) for i in trade['players']]
-        require(a is not None and b is not None and self.nearby(a, b), 'Trade partner disconnected or moved away.')
-        ia, ib = deepcopy(a['inventory']), deepcopy(b['inventory'])
-        for item, n in trade['offers'][a['id']].items():
-            remove(ia, item, n)
-        for item, n in trade['offers'][b['id']].items():
-            remove(ib, item, n)
-        for item, n in trade['offers'][b['id']].items():
-            require(add(ia, item, n) == 0, 'An explorer has no room for this trade.')
-        for item, n in trade['offers'][a['id']].items():
-            require(add(ib, item, n) == 0, 'An explorer has no room for this trade.')
+        try:
+            a, b = [self.game.players.get(i) for i in trade['players']]
+            require(a is not None and b is not None and self.nearby(a, b), 'Trade partner disconnected or moved away.')
+            ia, ib = deepcopy(a['inventory']), deepcopy(b['inventory'])
+            for item, n in trade['offers'][a['id']].items():
+                remove(ia, item, n)
+            for item, n in trade['offers'][b['id']].items():
+                remove(ib, item, n)
+            for item, n in trade['offers'][b['id']].items():
+                require(add(ia, item, n) == 0, 'An explorer has no room for this trade.')
+            for item, n in trade['offers'][a['id']].items():
+                require(add(ib, item, n) == 0, 'An explorer has no room for this trade.')
+        except Rejected as exc:
+            raise TradeInvalid(str(exc), trade['id']) from exc
         a['inventory'], b['inventory'] = ia, ib
         self.game.inventory(a)
         self.game.inventory(b)
         self.game.store.audit('trade', trade['players'], trade['offers'])
         self.cancel_trade(p, 'Trade completed. Your exchange has been saved.')
+
+    def trade_cancel(self, p, d):
+        if p['trade'] is not None:
+            self.get_trade(p, d)
+            self.cancel_trade(p)
 
     def cancel_trade(self, p, reason='Trade cancelled. No items were exchanged.'):
         trade = self.game.trades.pop(p['trade'], None)

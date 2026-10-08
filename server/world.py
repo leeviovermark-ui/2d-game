@@ -80,6 +80,8 @@ class World:
         return self.cells.get((x, y))
 
     def collides(self, x, y):
+        if not math.isfinite(x) or not math.isfinite(y):
+            return True
         if x < MOVE['width']/2 or x > WIDTH - MOVE['width']/2 or y < 0 or y + MOVE['height'] > HEIGHT:
             return True
         for tx in range(math.floor(x - MOVE['width']/2), math.floor(x + MOVE['width']/2 - .0001) + 1):
@@ -90,16 +92,26 @@ class World:
 
     def spawn(self):
         preferred = self.meta.get('spawn', [11.5, 19.4])
-        # Search supported, empty positions; never blindly teleport into a tile.
-        for radius in range(WIDTH):
-            for x in [preferred[0] + radius, preferred[0] - radius]:
-                if not 1 <= x < WIDTH - 1:
+        if (not isinstance(preferred, (list, tuple)) or len(preferred) != 2
+                or not all(type(v) in (int, float) and math.isfinite(v) for v in preferred)):
+            preferred = [11.5, 19.4]
+        # Choose the nearest supported position in both axes. A roof or a floating
+        # platform must not redirect arrivals far above an otherwise safe spawn.
+        best, best_distance = None, math.inf
+        xs = sorted({preferred[0], *(x + .5 for x in range(WIDTH))}, key=lambda x: abs(x - preferred[0]))
+        floors = sorted(range(2, HEIGHT + 1), key=lambda ty: abs(ty - MOVE['height'] - .001 - preferred[1]))
+        for x in xs:
+            if (x - preferred[0]) ** 2 > best_distance:
+                break
+            for ty in floors:
+                y = ty - MOVE['height'] - .001
+                distance = (x - preferred[0]) ** 2 + (y - preferred[1]) ** 2
+                if distance >= best_distance:
                     continue
-                for ty in range(2, HEIGHT - 2):
-                    y = ty - MOVE['height'] - .001
-                    if not self.collides(x, y) and self.collides(x, y + .03):
-                        return x, y
-        raise ValueError('World has no safe spawn.')
+                if not self.collides(x, y) and self.collides(x, y + .03):
+                    best, best_distance = (x, y), distance
+        require(best is not None, 'This world has no safe spawn. Ask its owner or an administrator to clear a space.')
+        return best
 
     def snapshot(self):
         return {'meta': self.meta, 'width': WIDTH, 'height': HEIGHT,

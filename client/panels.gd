@@ -3,6 +3,19 @@ extends RefCounted
 var ui: ForgeUI
 var state: ForgeState
 var art: ForgeArt
+var admin_panel
+
+func open_admin(data: Dictionary) -> void:
+	if not admin_panel:
+		admin_panel = load("res://client/admin_panel.gd").new()
+		admin_panel.ui = ui
+		admin_panel.state = state
+		admin_panel.art = art
+	admin_panel.open(data)
+
+func refresh_admin(data: Dictionary) -> void:
+	if admin_panel:
+		admin_panel.refresh(data)
 
 func open_inventory() -> void:
 	var body := ui.begin_modal("Your backpack","inventory",680,456)
@@ -224,17 +237,17 @@ func open_trade() -> void:
 		if ids.is_empty(): return
 		var offer: Dictionary = trade.offers[state.player_id].duplicate()
 		offer[ids[choices.selected]] = int(amount.value)
-		ui.intent.emit("trade_offer",{"offer":offer})))
+		ui.intent.emit("trade_offer",{"offer":offer,"trade_id":trade.id})))
 	var actions := HBoxContainer.new()
 	body.add_child(actions)
-	actions.add_child(ui.button("Clear offer",func(): ui.intent.emit("trade_offer",{"offer":{}})))
-	var lock := ui.button("Lock my offer",func(): ui.intent.emit("trade_lock",{"revision":trade.revision}),true)
+	actions.add_child(ui.button("Clear offer",func(): ui.intent.emit("trade_offer",{"offer":{},"trade_id":trade.id})))
+	var lock := ui.button("Lock my offer",func(): ui.intent.emit("trade_lock",{"revision":trade.revision,"trade_id":trade.id}),true)
 	lock.disabled = state.player_id in trade.locked
 	actions.add_child(lock)
-	var confirm := ui.button("Confirm exchange",func(): ui.intent.emit("trade_confirm",{"revision":trade.revision}),true)
+	var confirm := ui.button("Confirm exchange",func(): ui.intent.emit("trade_confirm",{"revision":trade.revision,"trade_id":trade.id}),true)
 	confirm.disabled = trade.locked.size() != 2 or state.player_id in trade.confirmed
 	actions.add_child(confirm)
-	body.add_child(ui.button("Cancel trade safely",func(): ui.intent.emit("trade_cancel",{})))
+	body.add_child(ui.button("Cancel trade safely",func(): ui.intent.emit("trade_cancel",{"trade_id":trade.id})))
 
 func open_settings() -> void:
 	var body := ui.begin_modal("Around the campfire","settings",560,430)

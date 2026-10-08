@@ -1,13 +1,16 @@
 """Single-thread authority. Requests transact synchronously; no await inside mutations."""
-from copy import deepcopy
+from copy import copy, deepcopy
 import math
+import logging
 import re
 import secrets
 import time
 from .definitions import ITEMS, RECIPES, MOVE, WIDTH, HEIGHT, solid
 from .inventory import Rejected, require, integer, add, remove, empty, transfer, quantity
 from .world import normalize
-from .trading import Trading
+from .trading import Trading, TradeInvalid
+from .admin import Admin
+from . import physics
 
 
 class Game:
@@ -20,6 +23,7 @@ class Game:
         self.invites = {}
         self.outbox = []
         self.trading = Trading(self)
+        self.admin = Admin(self)
 
     def emit(self, destination, kind, **data):
         self.outbox.append((destination, {'type': kind, **data}))
@@ -30,12 +34,15 @@ class Game:
         return self.worlds[name]
 
     def join(self, ident):
+        self.store.assert_not_banned(ident)
         if ident in self.players:
             return self.players[ident]
         p = self.store.player(ident)
         w = self.world(p['world'])
         if w.collides(p['x'], p['y']):
             p['x'], p['y'] = w.spawn()
+        p['grounded'] = w.collides(p['x'], p['y']+.02)
+        self.reset_movement(p)
         self.players[ident] = p
         return p
 
@@ -46,6 +53,7 @@ class Game:
         self.trading.cancel_trade(p)
         self.store.save_player(p)
         del self.players[ident]
+        self.prune_invites()
         self.emit('world:'+p['world'], 'departure', id=ident, name=p['name'])
         self.unload()
 
@@ -69,19 +77,52 @@ class Game:
     def mutable_inventory(self, p):
         require(p['trade'] is None, 'Finish or cancel your trade first.')
 
+    def reset_movement(self, p):
+        p.update(input={'axis': 0, 'jump': False, 'jump_held': False}, input_queue=[],
+                 input_time=0., input_sequence=0, processed_input=0, coyote=0., jump_buffer=0.,
+                 movement_epoch=secrets.token_hex(8))
+        p['ack_state'] = physics.snapshot(p)
+
+    def prune_invites(self):
+        for recipient, invite in list(self.invites.items()):
+            if recipient not in self.players or invite[0] not in self.players or invite[1] <= self.clock():
+                del self.invites[recipient]
+
     def command(self, ident, data):
         require(isinstance(data, dict), 'Invalid request.')
+        require(ident in self.players, 'Sign in before sending game requests.')
         p = self.players[ident]
         kind = data.get('type')
         if kind == 'input':
             axis = data.get('axis')
             require(type(axis) is int and axis in (-1, 0, 1) and type(data.get('jump')) is bool, 'Invalid movement.')
-            p['input'] = {'axis': axis, 'jump': data['jump']}
+            held = data.get('jump_held', True)
+            require(type(held) is bool, 'Invalid movement.')
+            intent = {'axis': axis, 'jump': data['jump'], 'jump_held': held}
+            if 'seq' in data:
+                if data.get('epoch') != p['movement_epoch']:
+                    return  # In-flight input from before a world change or reconnect.
+                seq = integer(data['seq'], 1, 2**31-1)
+                if seq <= p['input_sequence']:
+                    return
+                p['input_sequence'] = seq
+                intent['seq'] = seq
+                p['input_queue'].append(intent)
+                # Consume one frame per tick regardless of client rate. Bound latency and memory.
+                if len(p['input_queue']) > 8:
+                    p['input_queue'].pop(0)
+            else:
+                p['input'] = intent
             p['input_time'] = self.clock()
             return
+        self.store.assert_not_banned(ident)
         if kind == 'chat':
             text = data.get('text')
             require(isinstance(text, str) and 0 < len(text.strip()) <= 180, 'Chat is limited to 180 characters.')
+            if text.strip() == '/addomen':
+                self.admin.open(p)
+                return
+            require(not self.store.is_muted(ident, self.clock()), 'Your chat is muted by an administrator.')
             require(self.clock()-p['last_chat'] >= .7, 'Please slow down your messages.')
             text = ''.join(c for c in text.strip() if c.isprintable())
             p['last_chat'] = self.clock()
@@ -106,13 +147,21 @@ class Game:
                     'travel': self.travel, 'create_world': self.create_world, 'permissions': self.permissions,
                     'trade_request': self.trading.trade_request, 'trade_accept': self.trading.trade_accept,
                     'trade_offer': self.trading.trade_offer, 'trade_lock': self.trading.trade_lock,
-                    'trade_confirm': self.trading.trade_confirm, 'trade_cancel': lambda a, b: self.trading.cancel_trade(a)}
+                    'trade_confirm': self.trading.trade_confirm, 'trade_cancel': self.trading.trade_cancel,
+                    'admin_open': self.admin.open, 'admin_action': self.admin.action}
         require(kind in handlers, 'Unknown action.')
         if kind in ('place', 'drop_item', 'craft', 'storage', 'move_slot'):
             require(self.clock()-p['last_action'] >= .08, 'Please slow down.')
         # Keep the cache and pending broadcasts consistent if any validation/DB operation fails.
         saved_players, saved_trades, saved_invites = deepcopy(self.players), deepcopy(self.trades), deepcopy(self.invites)
-        saved_worlds = deepcopy(self.worlds)
+        saved_worlds = self.worlds.copy()
+        # Snapshot only the world that this request can mutate. Tile keys/IDs are immutable.
+        if kind in ('place', 'drop_item', 'interact', 'storage', 'permissions'):
+            w = self.world(p['world'])
+            saved = copy(w)
+            saved.cells, saved.crops = w.cells.copy(), w.crops.copy()
+            saved.meta, saved.containers, saved.drops = deepcopy(w.meta), deepcopy(w.containers), deepcopy(w.drops)
+            saved_worlds[w.name] = saved
         out_len = len(self.outbox)
         try:
             with self.store.transaction():
@@ -120,9 +169,11 @@ class Game:
                 handlers[kind](p, data)
                 if kind in ('place', 'drop_item', 'craft', 'storage', 'move_slot'):
                     p['last_action'] = self.clock()
-        except BaseException:
+        except BaseException as exc:
             self.players, self.trades, self.invites, self.worlds = saved_players, saved_trades, saved_invites, saved_worlds
             del self.outbox[out_len:]
+            if isinstance(exc, TradeInvalid) and self.players[ident]['trade'] == exc.trade_id:
+                self.trading.cancel_trade(self.players[ident], 'Trade cancelled: '+str(exc))
             raise
         self.emit(ident, 'ack', request=request)
 
@@ -245,13 +296,20 @@ class Game:
         if self.clock()-m['start'] < m['duration']:
             return
         x, y = m['x'], m['y']
+        drop = {'id': secrets.token_hex(10), 'x': x+.5, 'y': y+.5,
+                'item': ITEMS[m['item']]['drop'], 'n': 1, 'ready': self.clock()+.15}
         with self.store.transaction():
             self.store.tile(w.name, x, y, None)
             self.store.crop(w.name, x, y)
-            self.new_drop(w, x+.5, y+.5, ITEMS[m['item']]['drop'], 1)
+            self.store.db.execute('DELETE FROM containers WHERE world=? AND x=? AND y=?', (w.name, x, y))
+            self.store.drop(w.name, drop)
+        # Publish only after commit; a failed save cannot create a ghost drop or remove a tile.
         w.cells.pop((x, y))
         w.crops.pop((x, y), None)
+        w.containers.pop((x, y), None)
+        w.drops[drop['id']] = drop
         p['mining'] = None
+        self.emit('world:'+w.name, 'drop', drop=drop)
         self.emit('world:'+w.name, 'tile', x=x, y=y, item=None)
 
     def interact(self, p, d):
@@ -322,10 +380,11 @@ class Game:
         x, y = target.spawn()
         old = p['world']
         self.trading.cancel_trade(p)
-        p.update(world=name, x=x, y=y, vx=0., vy=0., mining=None)
+        p.update(world=name, x=x, y=y, vx=0., vy=0., mining=None, grounded=True)
+        self.reset_movement(p)
         self.store.save_player(p)
         self.emit('world:'+old, 'departure', id=p['id'], name=p['name'])
-        self.emit(p['id'], 'world', world=target.snapshot())
+        self.emit(p['id'], 'world', world=target.snapshot(), player=self.public_player(p))
         self.emit(p['id'], 'notice', text='Welcome to '+name+'.')
         self.unload()
 
@@ -358,38 +417,39 @@ class Game:
         self.emit(p['id'], 'notice', text='World permissions saved.')
 
     def tick(self, dt):
+        self.prune_invites()
         for p in list(self.players.values()):
             w = self.world(p['world'])
-            axis = p['input']['axis'] if self.clock()-p['input_time'] < .35 else 0
-            accel = MOVE['acceleration'] * (1 if p['grounded'] else MOVE['air_control'])
-            target = axis * MOVE['speed']
-            amount = (accel if axis else MOVE['friction']) * dt
-            p['vx'] += max(-amount, min(amount, target-p['vx']))
-            if p['input']['jump'] and p['grounded']:
-                p['vy'] = -MOVE['jump']
+            fresh = self.clock()-p['input_time'] < .35
+            queued = p['input_queue']
+            if not fresh:
+                queued.clear()
+                intent = {'axis': 0, 'jump': False, 'jump_held': False}
+            elif queued:
+                intent = queued.pop(0)
+                p['input'] = intent.copy()
+            else:
+                intent = p['input'].copy()
+                intent.pop('seq', None)
+            physics.step(p, w, intent, dt)
+            if 'seq' in intent:
+                p['processed_input'] = intent['seq']
+                p['ack_state'] = physics.snapshot(p)
             p['input']['jump'] = False
-            p['vy'] = min(20, p['vy']+MOVE['gravity']*dt)
-            # Small axis-separated steps prevent tunneling even under high fall speed.
-            steps = max(1, math.ceil(max(abs(p['vx']), abs(p['vy']))*dt/.15))
-            for _ in range(steps):
-                nx = p['x'] + p['vx']*dt/steps
-                if not w.collides(nx, p['y']):
-                    p['x'] = nx
-                else:
-                    p['vx'] = 0
-                ny = p['y'] + p['vy']*dt/steps
-                if not w.collides(p['x'], ny):
-                    p['y'] = ny
-                else:
-                    p['vy'] = 0
-            p['grounded'] = w.collides(p['x'], p['y']+.025)
-            self.finish_mining(p)
+            if self.clock() >= p.get('loot_retry', 0):
+                try:
+                    self.finish_mining(p)
+                    if not p['trade']:
+                        self.pickup(p, w)
+                except Exception:
+                    logging.getLogger('worldforge').exception('Could not save mining or pickup')
+                    p['loot_retry'] = self.clock()+1
+                    self.emit(p['id'], 'error', text='Could not save this action. Please try again.')
             if p['trade']:
                 trade = self.trades.get(p['trade'])
-                if trade and not self.trading.nearby(*[self.players[i] for i in trade['players']]):
+                partners = [self.players.get(i) for i in trade['players']] if trade else []
+                if trade and (any(q is None for q in partners) or not self.trading.nearby(*partners)):
                     self.trading.cancel_trade(p, 'Trade cancelled: an explorer moved away.')
-            else:
-                self.pickup(p, w)
 
     def pickup(self, p, w):
         for ident, drop in list(w.drops.items()):
@@ -399,19 +459,28 @@ class Game:
             remainder = add(inv, drop['item'], drop['n'])
             if remainder == drop['n']:
                 continue
+            saved = p.copy()
+            saved['inventory'] = inv
+            updated = {**drop, 'n': remainder}
             with self.store.transaction():
-                p['inventory'] = inv
+                self.store.save_player(saved)
                 if remainder:
-                    drop['n'] = remainder
-                    self.store.drop(w.name, drop)
-                    self.emit('world:'+w.name, 'drop', drop=drop)
+                    self.store.drop(w.name, updated)
                 else:
-                    del w.drops[ident]
                     self.store.db.execute('DELETE FROM drops WHERE id=?', (ident,))
-                    self.emit('world:'+w.name, 'drop_removed', id=ident)
-                self.inventory(p)
+            p['inventory'] = inv
+            if remainder:
+                w.drops[ident] = updated
+                self.emit('world:'+w.name, 'drop', drop=updated)
+            else:
+                del w.drops[ident]
+                self.emit('world:'+w.name, 'drop_removed', id=ident, collector=p['id'])
+            self.emit(p['id'], 'inventory', slots=inv, selected=p['selected'])
+
+    def public_player(self, p):
+        return {'id': p['id'], 'name': p['name'], **physics.snapshot(p),
+                'processed_input': p['processed_input'], 'ack_state': p['ack_state'], 'epoch': p['movement_epoch'],
+                'held': (p['inventory'][p['selected']] or {}).get('id'), 'mining': p['mining']}
 
     def snapshot(self, world):
-        return [{'id': p['id'], 'name': p['name'], 'x': p['x'], 'y': p['y'], 'vx': p['vx'], 'vy': p['vy'],
-                 'grounded': p['grounded'], 'held': (p['inventory'][p['selected']] or {}).get('id'), 'mining': p['mining']}
-                for p in self.players.values() if p['world'] == world]
+        return [self.public_player(p) for p in self.players.values() if p['world'] == world]

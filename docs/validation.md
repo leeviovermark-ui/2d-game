@@ -1,4 +1,21 @@
-# Validated development slice — 2026-10-07
+# Validation record
+
+## Graphics, movement, content and administration upgrade — 2026-10-08
+
+- **All 82 tests passed in the complete integration suite** in 11.300 seconds. Coverage includes the existing gameplay, persistence, live-network, crash-recovery, and Windows-startup checks; 26 administrator/authentication checks; eight movement/parity/prediction tests; six input-queue/slow-writer tests; and 16 economy/spawn/SQLite regressions.
+- **Actual Godot and Python movement matched nine complete trajectories**, comparing every frame's position, velocity, grounded status, coyote timer, and jump buffer. Numeric tolerance was 0.0003 tiles and grounded status matched exactly. Scenarios included acceleration/braking, held and tapped jumps, a wall, a ceiling, terminal-speed falling, world bounds, coyote time, and a buffered landing jump.
+- **The actual Godot prediction state passed 16 checks**: movement and presentation update before another server snapshot; acknowledgements remove only completed inputs and replay the rest; duplicate acknowledgements do not rewind prediction; pending history stays bounded; world changes reset input history, visual correction, and remote samples; movement epochs change with the world; and remote interpolation remains finite between snapshots.
+- **Input and network regressions passed** for burst inputs, duplicate/stale sequence numbers, old movement epochs after world travel, expired controls, stalled socket writers, and bounded queue overflow. Password scrypt hashing runs outside the event loop with at most four concurrent gateway authentication operations; SQLite account/session finalization remains on the authority thread and rechecks state after hashing.
+- **Economy regressions passed** for stale trade packets naming a replaced trade, missing trade IDs, boolean revisions, failed final capacity checks, missing offered items, and a partner moving away before the next tick. Failed final validation cancels both sides without exchanging items. Injected SQLite failures during mining, pickup, and partial pickup preserved both cache and database state, and successful retries created/collected items once.
+- **The current registry contains 48 items and 33 recipes.** All drop, placement, recipe output/ingredient, and station references resolve to known stable IDs; stack limits are valid. Seeded terrain generation remains unchanged for save compatibility.
+- **Godot native initialization and Web export passed.** The updated exported client completed the two-browser gameplay test, including the actual 90-second crop cycle, multiplayer movement/jumps, mining and pickup, synchronized placement, storage, crafting, trade confirmations, world travel/claims, chat, and saved-session reconnect without runtime errors.
+- **Additional browser checks passed** for the forest, desert, snow, and underground presentations and the actual administrator interface, including granting 99 lamps through the menu. The server uses 60 Hz movement and 20 Hz entity snapshots with bounded per-client writers.
+
+A scoped local benchmark measured the terrain-copying improvement with five authenticated players in five active seeded worlds. Thirty real SQLite-backed hotbar selection requests used the previous `Game` implementation from Git `HEAD` and the upgraded implementation with the same current registry and store. Median action time fell from **27.074 ms to 0.193 ms**, and the 95th percentile fell from **30.883 ms to 0.396 ms**. This measures selection-handler cost on this host; it is not a frame-rate or network-latency benchmark.
+
+Checks use temporary saves. Native Windows execution, production load, public deployment, and cloud environment publication remain outside this validation. The unsupported Windows signal-handler path is covered by the existing startup regression.
+
+## Original development slice — 2026-10-07
 
 - **25 authority, persistence, live-network, and crash-recovery tests passed** with `.venv/bin/python -m unittest discover -v`.
 - **Godot 4.6.3 native scene initialized without script/runtime errors** with `scripts/check_client.sh`; this helper checks Godot's error output as well as its exit status.

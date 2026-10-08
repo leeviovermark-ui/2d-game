@@ -21,6 +21,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name)/'network.sqlite3'
         self.clients = []
+        self.accounts = {}
         await self.start()
 
     async def start(self):
@@ -61,10 +62,14 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         self.clients.append(ws)
         data = {'type':'auth','token':token} if token else {'type':'auth','name':name,'password':'network-password','register':True}
         await ws.send(json.dumps(data))
-        return ws, await self.receive(ws,'welcome')
+        welcome = await self.receive(ws,'welcome')
+        self.accounts[ws] = welcome['id']
+        return ws, welcome
 
     async def command(self,ws,kind,**data):
         request = uuid.uuid4().hex
+        if kind in ('trade_offer', 'trade_lock', 'trade_confirm', 'trade_cancel'):
+            data.setdefault('trade_id', self.gateway.game.players[self.accounts[ws]]['trade'])
         await ws.send(json.dumps({'type':kind,'request':request,**data}))
         await self.receive(ws,'ack')
         await asyncio.sleep(.1)

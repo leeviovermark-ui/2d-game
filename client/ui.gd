@@ -67,6 +67,7 @@ func label(text: String, font_size: int = 14, color: Color = INK) -> Label:
 func button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var node := Button.new()
 	node.text = text
+	node.focus_mode = Control.FOCUS_NONE
 	node.custom_minimum_size.y = 36
 	node.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	node.add_theme_stylebox_override("normal",box(Color("bac8a6") if primary else Color("223336"),Color("bac8a6") if primary else Color("465a53"),10))
@@ -75,7 +76,9 @@ func button(text: String, callback: Callable, primary: bool = false) -> Button:
 	node.add_theme_color_override("font_color",Color("1d302c") if primary else INK)
 	node.add_theme_color_override("font_hover_color",Color("1d302c") if primary else INK)
 	node.add_theme_font_size_override("font_size",13)
-	node.pressed.connect(callback)
+	node.pressed.connect(func():
+		get_viewport().gui_release_focus()
+		callback.call())
 	return node
 
 func input(placeholder: String, secret: bool = false) -> LineEdit:
@@ -443,7 +446,7 @@ func begin_modal(title: String, kind: String, width: float = 680, height: float 
 
 func close_modal(cancel_trade: bool = true) -> void:
 	if cancel_trade and modal_kind == "trade" and not state.trade.is_empty():
-		intent.emit("trade_cancel",{})
+		intent.emit("trade_cancel",{"trade_id":state.trade.id})
 	if modal:
 		modal.queue_free()
 	modal = null
@@ -488,3 +491,9 @@ func open_settings() -> void:
 func open_help() -> void:
 	panels.open_help()
 
+
+func open_admin(data: Dictionary) -> void:
+	panels.open_admin(data)
+
+func refresh_admin(data: Dictionary) -> void:
+	panels.refresh_admin(data)
