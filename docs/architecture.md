@@ -6,11 +6,23 @@
 
 `ui.gd` owns the HUD and shared styling. `front_menu.gd` provides the starting menu, account forms, saved-session continuation, and actual connection phases. `account_menu.gd` provides password/session settings and recovery-code handling. Gameplay interfaces are split between `panels.gd`, `world_catalogue.gd`, `social_panel.gd`, `gameplay_panel.gd`, `admin_panel.gd`, and drag/drop `slot.gd`.
 
+Web remembered sessions use synchronous `localStorage`, with a logout tombstone and server-scoped continuation. Legacy `user://session.json` credentials migrate once and are erased through a stable empty-file write; new Web sessions never create that file. Avoid unlinking a path while Godot's asynchronous IndexedDB flush may still reference it. Storage failures disable remembering rather than restoring an older credential. Native clients retain their file-based store. Passwords and recovery drafts are never persisted by these stores.
+
 `server/main.py` is the bounded network gateway and fixed 60 Hz simulation loop. `game.py` validates gameplay, owns player/world caches, and routes world-scoped events. `physics.py` implements collision clipping, variable jump height, coyote time, jump buffering, and sprint movement. `world.py` owns seeded generation, collision, and safe-spawn search. `inventory.py` provides copy-based stack operations and transfers. `shared/definitions.json` supplies stable item IDs, recipes, and movement configuration to both runtimes.
 
 Feature components are `trading.py` for atomic exchanges, `admin.py` for role-checked grants/moderation, `accounts.py` for authenticated account security, `social.py` for durable friendships/blocks/favorites and personalized catalogues, and `mechanics.py` for timestamped processing, equipment, fishing, portals, and milestone rewards. `storage.py` persists accounts, worlds, inventories, sessions, crops, containers, drops, replay IDs, roles, moderation, and audit records.
 
 Normal intents cannot supply a player position, set inventory, select drop rewards, accelerate mining/crops, override another world's permissions, or award progression rewards. Movement packets contain axis, jump-edge, jump-held, sprint, sequence, and movement-epoch information. The server consumes at most one queued frame per simulation step, ignores stale sequences and old world/connection epochs, bounds the queue, and stops stale controls. Client prediction responds immediately while authoritative acknowledgements correct its state.
+
+## Shared hosting and browser origins
+
+`scripts/play.py` starts one authority: its default loopback listener is local play, while `--host 0.0.0.0` admits clients on the host's reachable interfaces. Each separate authority has its own accounts and world database. Friends on a trusted private network use `scripts/join_lan.py`, which serves only the exported browser files on loopback. The local page supplies the secure browser context required by Godot; its explicit, validated `join` parameter selects the shared private IPv4 WebSocket server. The Join process creates no authority or save database.
+
+Ordinary browser pages derive WS/WSS from their current HTTP/HTTPS origin. Old preferences cannot silently redirect them. A local Join page may select a literal RFC1918 host explicitly; remembered sessions are then scoped to that chosen authority. Public pages ignore this local-only join parameter. HTTPS pages reject plaintext WebSocket endpoints. The HUD displays actual connection state and measured round-trip latency.
+
+`scripts/host_online.py` supervises a public-mode authority and a checksum-verified temporary Cloudflare tunnel. It announces the public address after health, release, HTML, and WSS probes succeed. `deploy/` instead supplies one persistent authority behind Caddy, with durable SQLite/certificate volumes. Actual external reachability must be tested on the chosen host; neither arrangement's configuration establishes internet availability by itself.
+
+Public mode disables local-owner bootstrap even when its listener is loopback. Forwarded client addresses affect sign-in limits only when the actual connecting peer is explicitly trusted. CF-Connecting-IP accepts one validated address; X-Forwarded-For is parsed from the rightmost untrusted hop, with strict bounded address validation. Supplied authentication protocols must match protocol 2 before account creation; legacy omission remains compatible. Welcome and the uncached `/version` endpoint advertise the Stage 3 release and protocol.
 
 Mining completion uses the server clock, selected tool, current tile, permission, and reach. Placement removes an item only after bounds, occupancy, support, overlap, permission, and quantity checks. Spawns choose a nearby clear, supported position in both axes. Sprint energy is authoritative; the client predicts its movement effect and reconciles it alongside position.
 
@@ -48,7 +60,7 @@ New worlds are saved before their catalogue entry is broadcast. Rows combine sto
 
 `/addomen` requests the interface without granting a role. The server checks the persisted role on every action. Grants validate full capacity and reject active trades. Moderation and grants are audited; bans invalidate sessions and prevent sign-in/resume. Kicking or banning saves the online explorer's state, cancels their trade, and closes the connection. Administrators cannot kick, ban, or mute themselves or another administrator through this menu.
 
-On the default loopback listener, the oldest account becomes owner when no administrator is configured; for a new save, the first account becomes owner. Public listeners require explicit `--admin NAME` and never appoint the first visitor automatically. Named roles persist. Create and secure the intended account locally before exposing a named administrator publicly.
+On the default local loopback listener, the oldest account becomes owner when no administrator is configured; for a new save, the first account becomes owner. Public listeners and explicit `--public` mode require configured roles and never appoint the first visitor automatically, including behind loopback tunnels. Named roles persist. Create and secure the intended account locally before exposing a named administrator publicly.
 
 ## Save compatibility and performance
 

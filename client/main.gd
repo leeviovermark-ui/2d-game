@@ -149,6 +149,7 @@ func on_packet(data: Dictionary) -> void:
 			state.selected = int(data.selected)
 			state.server_offset = float(data.server_time)-Time.get_unix_time_from_system()
 			state.load_world(data.world, data.get("player", {}))
+			ui.set_connection_status("Connected")
 			minimap.world_changed()
 			state.trade = {}
 			state.social = {}
@@ -269,6 +270,7 @@ func on_packet(data: Dictionary) -> void:
 
 func on_status(text: String) -> void:
 	ui.set_status(text)
+	ui.set_connection_status(text)
 	if text.begins_with("Reconnecting"):
 		playing = false
 		ui.close_modal(false)

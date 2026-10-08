@@ -3,6 +3,7 @@ import argparse
 import asyncio
 from collections import deque
 import json
+import ipaddress
 import logging
 import re
 import signal
@@ -19,11 +20,80 @@ from .storage import Store
 from .accounts import Accounts
 
 LOG = logging.getLogger('worldforge')
+RELEASE = 'stage3'
+PROTOCOL = 2
+PROXY_IP_HEADERS = ('X-Forwarded-For', 'CF-Connecting-IP')
+
+
+def proxy_network(value):
+    """Parse explicit trusted proxy ranges, including individual proxy addresses."""
+    try:
+        return ipaddress.ip_network(value, strict=False)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError('Trusted proxies must be IP addresses or CIDR ranges.') from exc
+
+
+def normalized_ip(value):
+    # Reject interface scopes and non-address forms before canonicalizing an IP.
+    require(isinstance(value, str) and 0 < len(value) <= 45 and '%' not in value,
+            'Invalid proxy client address.')
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as exc:
+        raise Rejected('Invalid proxy client address.') from exc
+    return address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped else address
+
+
+def client_address(ws, trusted_proxies=(), proxy_ip_header='X-Forwarded-For'):
+    """Use forwarded identity only from an explicitly trusted connecting peer.
+
+    X-Forwarded-For is walked from right to left, removing trusted proxy hops.
+    The first untrusted address is the client; preceding spoofable entries are
+    ignored. CF-Connecting-IP must contain exactly one valid IP address.
+    Missing headers fall back to the actual peer. Malformed trusted headers
+    fail closed rather than creating arbitrary rate-limit identities.
+    """
+    require(proxy_ip_header in PROXY_IP_HEADERS, 'Unsupported proxy IP header.')
+    if not ws.remote_address:
+        return 'unknown'
+    peer = normalized_ip(ws.remote_address[0])
+
+    def trusted(address):
+        return any(address.version == network.version and address in network for network in trusted_proxies)
+
+    if not trusted(peer):
+        return str(peer)
+    request = getattr(ws, 'request', None)
+    headers = getattr(request, 'headers', None)
+    if headers is None:
+        return str(peer)
+    try:
+        forwarded = headers.get(proxy_ip_header)
+    except (ValueError, LookupError) as exc:
+        raise Rejected('Invalid proxy client address.') from exc
+    if forwarded is None:
+        return str(peer)
+    require(isinstance(forwarded, str) and len(forwarded) <= 1024,
+            'Invalid proxy client address.')
+    parts = forwarded.split(',')
+    require(1 <= len(parts) <= (16 if proxy_ip_header == 'X-Forwarded-For' else 1),
+            'Invalid proxy client address.')
+    addresses = [normalized_ip(part.strip()) for part in parts]
+    if proxy_ip_header == 'CF-Connecting-IP':
+        return str(addresses[0])
+    for address in reversed(addresses):
+        if not trusted(address):
+            return str(address)
+    return str(addresses[0])
 
 
 class Gateway:
-    def __init__(self, game):
+    def __init__(self, game, *, trusted_proxies=(), proxy_ip_header='X-Forwarded-For'):
         self.game = game
+        self.trusted_proxies = tuple(proxy_network(value) if isinstance(value, str) else value
+                                     for value in trusted_proxies)
+        require(proxy_ip_header in PROXY_IP_HEADERS, 'Unsupported proxy IP header.')
+        self.proxy_ip_header = proxy_ip_header
         self.accounts = Accounts(game.store)
         self.connections = {}
         self.connection_tokens = {}
@@ -119,7 +189,7 @@ class Gateway:
         self.send_queues[ws] = queue
         writer = asyncio.create_task(self.writer(ws, queue))
         action_history = deque()
-        address = ws.remote_address[0] if ws.remote_address else 'unknown'
+        address = None
         try:
             async for raw in ws:
                 now = time.monotonic()
@@ -133,8 +203,13 @@ class Gateway:
                 try:
                     data = json.loads(raw)
                     require(isinstance(data, dict) and isinstance(data.get('type'), str), 'Malformed request.')
+                    if address is None:
+                        address = client_address(ws, self.trusted_proxies, self.proxy_ip_header)
                     if ident is None:
                         require(data['type'] in ('auth', 'recovery_reset'), 'Sign in before sending game requests.')
+                        if 'protocol' in data:
+                            require(type(data['protocol']) is int and data['protocol'] == PROTOCOL,
+                                    'This game client uses a different multiplayer version. Refresh the game from this server or download its current release.')
                         attempts = [t for t in self.auth_attempts.get(address, []) if t > now-60]
                         require(len(attempts) < 12, 'Too many sign-in attempts. Wait one minute.')
                         self.auth_attempts[address] = attempts + [now]
@@ -177,6 +252,7 @@ class Gateway:
                             await ws.send(json.dumps({'type': 'welcome', 'id': candidate, 'name': p['name'], 'token': token,
                                                       'slots': p['inventory'], 'selected': p['selected'], 'server_time': time.time(),
                                                       'admin': self.game.store.is_admin(candidate), 'player': self.game.public_player(p),
+                                                      'release': RELEASE, 'protocol': PROTOCOL,
                                                       'recovery_code': recovery_code, 'recovery_expires': recovery_expires,
                                                       'world': self.game.world(p['world']).snapshot()}))
                             self.owns_connection(candidate, ws)
@@ -273,8 +349,9 @@ class Gateway:
 
 async def http_request(connection, request):
     if request.path == '/version':
-        response = connection.respond(HTTPStatus.OK, json.dumps({'release':'stage2', 'protocol':2}))
+        response = connection.respond(HTTPStatus.OK, json.dumps({'release':RELEASE, 'protocol':PROTOCOL}))
         response.headers['Content-Type'] = 'application/json'
+        response.headers['Cache-Control'] = 'no-store'
         return response
     if request.path == '/health':
         return connection.respond(HTTPStatus.OK, 'WORLDFORGE authority healthy\n')
@@ -297,7 +374,12 @@ async def http_request(connection, request):
 
 def install_shutdown_handlers(loop, stop):
     """Windows Proactor loops don't implement add_signal_handler."""
-    for sig in (signal.SIGTERM, signal.SIGINT):
+    signals = [signal.SIGTERM, signal.SIGINT]
+    if hasattr(signal, 'SIGBREAK'):
+        # A supervised Windows child process group receives CTRL_BREAK_EVENT.
+        # Route that event through the same save-and-stop path as console Ctrl+C.
+        signals.append(signal.SIGBREAK)
+    for sig in signals:
         try:
             loop.add_signal_handler(sig, stop.set)
         except NotImplementedError:
@@ -306,8 +388,11 @@ def install_shutdown_handlers(loop, stop):
 
 async def main(args):
     store = Store(args.database)
-    store.configure_admins(getattr(args, 'admin', []), local_owner=args.host in ('127.0.0.1', 'localhost', '::1'))
-    gateway = Gateway(Game(store))
+    store.configure_admins(getattr(args, 'admin', []),
+                          local_owner=not getattr(args, 'public', False)
+                          and args.host in ('127.0.0.1', 'localhost', '::1'))
+    gateway = Gateway(Game(store), trusted_proxies=getattr(args, 'trusted_proxy', ()),
+                      proxy_ip_header=getattr(args, 'proxy_ip_header', 'X-Forwarded-For'))
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     install_shutdown_handlers(loop, stop)
@@ -330,6 +415,11 @@ async def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', default='127.0.0.1', help='Use 0.0.0.0 behind your TLS reverse proxy for remote clients.')
+    parser.add_argument('--public', action='store_true', help='Disable automatic local administrator bootstrap, including behind a loopback tunnel.')
+    parser.add_argument('--trusted-proxy', action='append', default=[], type=proxy_network, metavar='IP_OR_CIDR',
+                        help='Trust this connecting proxy for client IP headers; repeat for additional proxies.')
+    parser.add_argument('--proxy-ip-header', choices=PROXY_IP_HEADERS, default='X-Forwarded-For',
+                        help='X-Forwarded-For uses the rightmost untrusted hop; CF-Connecting-IP must be a single address.')
     parser.add_argument('--admin', action='append', default=[], metavar='NAME', help='Grant server administrator access to this account name (repeatable).')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--database', default=str(ROOT / 'data/worldforge.sqlite3'))

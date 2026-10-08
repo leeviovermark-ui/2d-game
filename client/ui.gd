@@ -55,6 +55,11 @@ var account_menu
 var account_status: Label
 var account_fields := {}
 var account_data := {}
+var connection_online := false
+var connection_phase := "Disconnected"
+var connection_refresh := 0.0
+var connection_last_text := ""
+var web_session_blocked := false
 const INK := Color("f2fff8")
 const MUTED := Color("b6d3cb")
 const ACCENT := Color("f5d48e")
@@ -194,11 +199,16 @@ func submit_login() -> void:
 func save_session(token: String, endpoint: String) -> void:
 	if remember_session:
 		var saved := {"token":token,"endpoint":endpoint,"name":state.player_name}
-		# IndexedDB sync is asynchronous in the browser. Save the remembered
-		# token synchronously so an immediate refresh keeps the account.
-		if OS.has_feature("web"): write_web_session(saved)
-		var file := FileAccess.open("user://session.json",FileAccess.WRITE)
-		if file: file.store_string(JSON.stringify(saved))
+		# Browser sessions use one synchronous store. Writing and deleting the
+		# same user:// file could race Godot's asynchronous IndexedDB flush.
+		if OS.has_feature("web"):
+			if not write_web_session(saved):
+				remember_session = false
+				notify("This browser cannot remember your sign-in. Sign in again next time; your progress stays on the server.")
+			scrub_legacy_web_session()
+		else:
+			var file := FileAccess.open("user://session.json",FileAccess.WRITE)
+			if file: file.store_string(JSON.stringify(saved))
 	else:
 		clear_session()
 	if is_instance_valid(password): password.clear()
@@ -213,26 +223,47 @@ func read_session_file() -> Dictionary:
 	if not FileAccess.file_exists("user://session.json"): return {}
 	return valid_session(JSON.parse_string(FileAccess.get_file_as_string("user://session.json")))
 
+func scrub_legacy_web_session() -> void:
+	if not OS.has_feature("web") or not FileAccess.file_exists("user://session.json"): return
+	if FileAccess.get_file_as_string("user://session.json").strip_edges() == "{}": return
+	# Preserve the legacy file's path until any pending IDB sync completes.
+	# Erasing its contents once removes the old credential without unlinking
+	# a file which Godot's asynchronous filesystem writer still references.
+	var legacy := FileAccess.open("user://session.json",FileAccess.WRITE)
+	if legacy: legacy.store_string("{}")
+
 func write_web_session(saved: Dictionary) -> bool:
-	var result = JavaScriptBridge.eval("(()=>{try{localStorage.setItem('worldforge.session.v2',JSON.stringify(" + JSON.stringify(saved) + "));localStorage.removeItem('worldforge.session.cleared');return true;}catch(_){return false;}})()",true)
+	var result = JavaScriptBridge.eval("(()=>{try{localStorage.setItem('worldforge.session.v2',JSON.stringify(" + JSON.stringify(saved) + "));localStorage.removeItem('worldforge.session.cleared');return true;}catch(_){try{localStorage.removeItem('worldforge.session.v2');localStorage.setItem('worldforge.session.cleared','1');}catch(_){}return false;}})()",true)
+	web_session_blocked = result != true
 	return result == true
 
 func load_session() -> Dictionary:
 	if OS.has_feature("web"):
+		if web_session_blocked: return {}
 		var raw = JavaScriptBridge.eval("(()=>{try{const raw=localStorage.getItem('worldforge.session.v2');const cleared=localStorage.getItem('worldforge.session.cleared')==='1';if(cleared)return JSON.stringify({available:true,present:true,session:null});if(raw===null)return JSON.stringify({available:true,present:false});try{return JSON.stringify({available:true,present:true,session:JSON.parse(raw)});}catch(_){return JSON.stringify({available:true,present:true,session:null});}}catch(_){return JSON.stringify({available:false,present:true,session:null});}})()",true)
 		var result = JSON.parse_string(str(raw))
-		if not result is Dictionary or not result.get("available",false): return {}
-		if result.get("present",false): return valid_session(result.get("session"))
+		if not result is Dictionary or not result.get("available",false):
+			scrub_legacy_web_session()
+			return {}
+		if result.get("present",false):
+			scrub_legacy_web_session()
+			return valid_session(result.get("session"))
 		# Migrate a Stage 1 session once. A synchronous logout tombstone above
 		# prevents an old IndexedDB file from restoring a revoked token.
 		var legacy := read_session_file()
-		if not legacy.is_empty(): write_web_session(legacy)
-		return legacy
+		if not legacy.is_empty():
+			var migrated := write_web_session(legacy)
+			scrub_legacy_web_session()
+			if migrated: return legacy
+		return {}
 	return read_session_file()
 
 func clear_session() -> void:
 	if OS.has_feature("web"):
-		JavaScriptBridge.eval("(()=>{try{localStorage.setItem('worldforge.session.cleared','1');localStorage.removeItem('worldforge.session.v2');return true;}catch(_){return false;}})()",true)
+		var cleared = JavaScriptBridge.eval("(()=>{try{localStorage.removeItem('worldforge.session.v2');localStorage.setItem('worldforge.session.cleared','1');return true;}catch(_){return false;}})()",true)
+		web_session_blocked = cleared != true
+		scrub_legacy_web_session()
+		return
 	if FileAccess.file_exists("user://session.json"):
 		DirAccess.remove_absolute("user://session.json")
 
@@ -276,7 +307,7 @@ func build_hud() -> void:
 	selected_name = label("",13,INK)
 	selected_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(selected_name)
-	connection = label("●  CONNECTED    ·    SERVER-SAVED",10,MUTED)
+	connection = label("●  DISCONNECTED",10,MUTED)
 	root.add_child(connection)
 	energy_container = column(root,4)
 	energy_container.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -349,6 +380,8 @@ func layout() -> void:
 	selected_name.position = Vector2(size.x/2-400,size.y-62)
 	selected_name.size = Vector2(800,20)
 	connection.position = Vector2(26,size.y-29)
+	connection.size = Vector2(maxf(160.0,(size.x-840.0)/2-48.0),20)
+	connection.clip_text = true
 	energy_container.position = Vector2(size.x-232,size.y-(177 if compact else 122))
 	energy_container.size = Vector2(202,34)
 	var controls := root.get_node("Controls") as Label
@@ -394,7 +427,34 @@ func notify(text: String) -> void:
 	toast.visible = true
 	toast_time = 4
 
+func set_connection_status(text: String) -> void:
+	var next_online := text in ["Connected","Online","welcome"]
+	if next_online and not connection_online: state.latency = -1
+	connection_online = next_online
+	connection_phase = text
+	refresh_connection_status()
+
+func refresh_connection_status() -> void:
+	if not is_instance_valid(connection): return
+	var shown := "●  " + connection_phase
+	var color := MUTED
+	if connection_online:
+		shown = "●  ONLINE    ·    " + (str(state.latency) + " MS RTT" if state.latency >= 0 else "MEASURING LATENCY")
+		color = Color("ffd38e") if state.latency > 200 else Color("9ff4cf")
+	elif connection_phase.begins_with("Reconnecting"):
+		color = Color("ffd38e")
+	if shown != connection_last_text:
+		connection.text = shown
+		connection.add_theme_color_override("font_color",color)
+		connection_last_text = shown
+	var location: String = front_menu.location_title(front_menu.endpoint) if front_menu else "Game server"
+	connection.tooltip_text = location + "\n" + connection_phase + (". RTT measures the round trip to the server." if connection_online else "")
+
 func _process(delta: float) -> void:
+	connection_refresh -= delta
+	if connection_refresh <= 0:
+		connection_refresh = .4
+		refresh_connection_status()
 	if game_enabled:
 		var energy: float = clampf(float(state.predicted.get("energy",100)),0.0,100.0)
 		energy_bar.value = lerpf(energy_bar.value,energy,1.0-exp(-delta*9.0))
@@ -514,6 +574,25 @@ func open_trade() -> void:
 
 func open_settings() -> void:
 	panels.open_settings()
+	if front_menu and is_instance_valid(modal_body):
+		var settings := modal_body.get_children().slice(2)
+		var scroll := ScrollContainer.new()
+		scroll.name = "SettingsScroll"
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		modal_body.add_child(scroll)
+		var content: VBoxContainer = column(scroll,13)
+		content.name = "SettingsContents"
+		content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for child in settings: child.reparent(content)
+		var server: Label = label(front_menu.location_title(front_menu.endpoint),11,ACCENT)
+		server.name = "CurrentServerLocation"
+		server.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(server)
+		var help: Label = label(front_menu.connection_help(front_menu.endpoint),12,MUTED)
+		help.name = "CurrentServerHelp"
+		help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(help)
 
 func open_help() -> void:
 	panels.open_help()

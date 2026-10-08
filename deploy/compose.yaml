@@ -1,0 +1,78 @@
+# Run from the repository root. Keep this project name stable to retain volumes.
+name: worldforge
+
+services:
+  game:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: worldforge-server:local
+    restart: unless-stopped
+    command:
+      - --host
+      - 0.0.0.0
+      - --public
+      - --database
+      - /data/worldforge.sqlite3
+      - --trusted-proxy
+      - 172.30.86.2/32
+      - --proxy-ip-header
+      - X-Forwarded-For
+    volumes:
+      - worldforge_data:/data
+    networks:
+      authority:
+        ipv4_address: 172.30.86.3
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  proxy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      WORLDFORGE_DOMAIN: ${WORLDFORGE_DOMAIN:?Set WORLDFORGE_DOMAIN to your public hostname}
+      WORLDFORGE_ACME_EMAIL: ${WORLDFORGE_ACME_EMAIL:-}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      authority:
+        ipv4_address: 172.30.86.2
+    depends_on:
+      game:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+networks:
+  authority:
+    ipam:
+      config:
+        - subnet: 172.30.86.0/24
+
+volumes:
+  worldforge_data:
+  caddy_data:
+  caddy_config:

@@ -55,6 +55,7 @@ func poll() -> void:
 			was_open = true
 			var auth := credentials.duplicate(true)
 			if not auth.has("type"): auth.type = "auth"
+			auth.protocol = 2
 			send(auth)
 			credentials.clear()
 			status_changed.emit("Verifying your explorer account…")

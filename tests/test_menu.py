@@ -1,4 +1,4 @@
-"""Run account form and loading-state regressions inside the real Godot UI."""
+"""Exercise real account controls, server selection, and connection indicators."""
 import json
 import os
 from pathlib import Path
@@ -26,5 +26,5 @@ class MenuUITests(unittest.TestCase):
         self.assertNotIn('\nERROR:', output)
         payload = next(json.loads(line) for line in result.stdout.splitlines()
                        if line.startswith('{') and '"menu_checks"' in line)
-        self.assertGreaterEqual(payload['menu_checks'], 24)
+        self.assertGreaterEqual(payload['menu_checks'], 110)
         self.assertEqual(payload['failures'], [])

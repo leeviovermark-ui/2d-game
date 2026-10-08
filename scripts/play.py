@@ -1,7 +1,8 @@
-"""One-click local browser play, with dependency setup and graceful shutdown."""
+"""One-click local or same-network play, with graceful shutdown."""
 import argparse
 import asyncio
 from importlib import metadata
+import ipaddress
 import json
 import logging
 from pathlib import Path
@@ -17,7 +18,7 @@ import webbrowser
 
 ROOT = Path(__file__).resolve().parents[1]
 HEALTH_MESSAGE = b'WORLDFORGE authority healthy'
-RELEASE = 'stage2'
+RELEASE = 'stage3'
 PROTOCOL = 2
 
 
@@ -70,6 +71,60 @@ def port_busy(port):
         return False
 
 
+def lan_addresses():
+    """Find usable IPv4 interfaces without sending a network probe."""
+    candidates = set()
+    try:
+        candidates.update(address[4][0] for address in socket.getaddrinfo(
+            socket.gethostname(), None, family=socket.AF_INET))
+    except OSError:
+        pass
+    # UDP connect only asks the OS which local interface serves its default
+    # route. It sends no packets and needs no DNS or internet service.
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as route:
+            route.connect(('192.0.2.1', 9))
+            candidates.add(route.getsockname()[0])
+    except OSError:
+        pass
+    addresses = []
+    for candidate in candidates:
+        try:
+            address = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if (address.version == 4 and address.is_private and not address.is_loopback
+                and not address.is_unspecified and not address.is_link_local):
+            addresses.append(str(address))
+    return sorted(addresses, key=lambda value: int(ipaddress.ip_address(value)))
+
+
+def local_url(host, port):
+    browser_host = '127.0.0.1' if host in ('0.0.0.0', 'localhost') else host
+    if ':' in browser_host:
+        browser_host = '[' + browser_host + ']'
+    return f'http://{browser_host}:{port}'
+
+
+def announce_lan(host, port):
+    if host in ('127.0.0.1', 'localhost', '::1'):
+        return
+    addresses = lan_addresses() if host == '0.0.0.0' else [host]
+    print('\nThis computer hosts the shared world. Give friends ONE shared server address:', flush=True)
+    for address in addresses:
+        print(f'Friends on your Wi-Fi: http://{address}:{port}', flush=True)
+    if not addresses:
+        command = 'ipconfig in PowerShell' if sys.platform == 'win32' else 'ip -4 addr show in a terminal'
+        print('Could not detect your Wi-Fi address. Run ' + command, flush=True)
+        print(f'and use your Wi-Fi adapter IPv4 address: http://YOUR-IPV4-ADDRESS:{port}', flush=True)
+    print('Use a different explorer account for each player; accounts and worlds belong to this host.', flush=True)
+    print('Friends double-click Join-WORLDFORGE-LAN.bat and paste the address above.', flush=True)
+    print('The Join launcher opens their local browser client connected to this shared host.', flush=True)
+    print('Friends must not start Play-WORLDFORGE.bat or another Host launcher.', flush=True)
+    print('If a friend cannot connect, allow Python on Private networks in Windows Firewall.', flush=True)
+    print('Both computers need the same Wi-Fi; guest Wi-Fi / client isolation can block access.', flush=True)
+
+
 def open_browser(url, disabled):
     print('\nPlay at ' + url, flush=True)
     if not disabled:
@@ -80,11 +135,12 @@ def open_browser(url, disabled):
             print('Open the address above in Chrome or Edge.', flush=True)
 
 
-def announce_when_ready(url, disabled, stopped):
+def announce_when_ready(url, disabled, stopped, host='127.0.0.1', port=8765):
     deadline = time.monotonic() + 15
     while not stopped.is_set() and time.monotonic() < deadline:
         if health_ready(url) and compatible_server(url):
             open_browser(url, disabled)
+            announce_lan(host, port)
             print('Keep this window open while playing. Press Ctrl+C to save and stop.', flush=True)
             return
         stopped.wait(0.2)
@@ -94,7 +150,9 @@ def announce_when_ready(url, disabled, stopped):
 
 def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
-    parser = argparse.ArgumentParser(description='Start WORLDFORGE locally and open its browser client.')
+    parser = argparse.ArgumentParser(description='Start WORLDFORGE and open its browser client.')
+    parser.add_argument('--host', default='127.0.0.1',
+                        help='Use 0.0.0.0 to host one shared server for friends on your Wi-Fi.')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--database', default=str(ROOT / 'data/worldforge.sqlite3'))
     parser.add_argument('--admin', action='append', default=[], metavar='NAME',
@@ -130,13 +188,17 @@ def main(argv=None):
             print('Could not prepare Python dependencies: ' + str(exc))
             print('Check your internet connection, then start Play-WORLDFORGE.bat again.')
             return 1
-    url = 'http://127.0.0.1:' + str(args.port)
+    url = local_url(args.host, args.port)
     if port_busy(args.port):
         if health_ready(url):
             if not compatible_server(url):
                 print('An older or different WORLDFORGE release is still running on this port.')
-                print('Press Ctrl+C in its original server window, then start this Stage 2 launcher again.')
+                print('Press Ctrl+C in its original server window, then start this launcher again.')
                 print('To run a separate server instead, start with --port 8766.')
+                return 1
+            if args.host not in ('127.0.0.1', 'localhost', '::1'):
+                print('A server is already running on this port. Stop it with Ctrl+C in its original window first.')
+                print('Then restart this LAN launcher so it can bind to your Wi-Fi interface.')
                 return 1
             print('WORLDFORGE is already running. Its original server window controls saving and shutdown.')
             open_browser(url, args.no_browser)
@@ -145,10 +207,10 @@ def main(argv=None):
         return 1
     sys.path.insert(0, str(ROOT))
     from server.main import main as run_server
-    args.host = '127.0.0.1'
     stopped = threading.Event()
-    watcher = threading.Thread(target=announce_when_ready, args=(url, args.no_browser, stopped), daemon=True)
-    print('Starting WORLDFORGE. Your existing worlds and characters stay in data/worldforge.sqlite3.', flush=True)
+    watcher = threading.Thread(target=announce_when_ready,
+                               args=(url, args.no_browser, stopped, args.host, args.port), daemon=True)
+    print('Starting WORLDFORGE. Worlds and characters are saved in ' + str(args.database) + '.', flush=True)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     watcher.start()
     try:

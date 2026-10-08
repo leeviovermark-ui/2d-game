@@ -1,0 +1,16 @@
+{
+	email "{$WORLDFORGE_ACME_EMAIL}"
+}
+
+{$WORLDFORGE_DOMAIN} {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+	}
+	# Caddy handles WebSocket upgrades and supplies the real connecting client IP.
+	# An incoming, client-supplied X-Forwarded-For is replaced at this edge.
+	reverse_proxy game:8765 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

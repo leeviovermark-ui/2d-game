@@ -12,10 +12,12 @@ def main():
     if any(not (ROOT / 'build/web' / name).is_file() for name in required):
         raise SystemExit('Export the browser client with scripts/export_web.sh first.')
     paths = []
-    for directory in ('server', 'shared', 'client', 'assets', 'scripts', 'docs', 'tests', 'build/web'):
+    for directory in ('server', 'shared', 'client', 'assets', 'scripts', 'docs', 'tests', 'deploy', 'build/web'):
         paths.extend((ROOT / directory).rglob('*'))
     paths.extend(ROOT / name for name in ('README.md', 'requirements.txt', 'project.godot',
-                                        'export_presets.cfg', '.gitignore', 'Play-WORLDFORGE.bat'))
+                                        'export_presets.cfg', '.gitignore', '.dockerignore', 'Play-WORLDFORGE.bat',
+                                        'Host-WORLDFORGE-LAN.bat', 'Join-WORLDFORGE-LAN.bat',
+                                        'Host-WORLDFORGE-Online.bat'))
     DESTINATION.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(DESTINATION, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for path in sorted(set(paths)):
