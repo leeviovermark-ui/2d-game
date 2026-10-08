@@ -36,6 +36,18 @@ var search_items := ""
 var search_players := ""
 var selected_tab := 0
 
+func reset() -> void:
+	snapshot = {}
+	pending_action.clear()
+	selected_item = ""
+	selected_player = ""
+	search_items = ""
+	search_players = ""
+	selected_tab = 0
+	moderation_buttons.clear()
+	splits.clear()
+	body = null
+
 func open(data: Dictionary) -> void:
 	snapshot = data
 	if is_open():

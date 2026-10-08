@@ -3,12 +3,13 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import sqlite3
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from .inventory import require, starter
+from .inventory import Rejected, require, starter
 from .world import World
 
 
@@ -16,7 +17,14 @@ def encode(value):
     return json.dumps(value, separators=(',', ':'))
 
 
+class SessionExpired(Rejected):
+    """A recognizable rejection lets clients replace a stale saved session."""
+    code = 'session_expired'
+
+
 class Store:
+    SESSION_LIMIT = 8
+
     def __init__(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, isolation_level=None)
@@ -48,9 +56,14 @@ class Store:
             CREATE TABLE IF NOT EXISTS pending_admins(username TEXT PRIMARY KEY COLLATE NOCASE);
             CREATE TABLE IF NOT EXISTS moderation(account TEXT PRIMARY KEY REFERENCES accounts(id),
                 ban_reason TEXT, ban_by TEXT, banned REAL, muted_until REAL NOT NULL DEFAULT 0, muted_by TEXT);
+            CREATE TABLE IF NOT EXISTS accounts_security(account TEXT PRIMARY KEY REFERENCES accounts(id),
+                recovery_hash TEXT, recovery_expires REAL NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS sessions_account_expires ON sessions(account,expires);
+            CREATE INDEX IF NOT EXISTS sessions_expires ON sessions(expires);
             UPDATE schema_version SET version=2;
         ''')
         self._local_owner_enabled = False
+        self._registration_recovery = {}
         self.db.execute('DELETE FROM sessions WHERE expires < ?', (time.time(),))
         self.db.execute('DELETE FROM requests WHERE created < ?', (time.time() - 30*86400,))
         if not self.db.execute('SELECT 1 FROM worlds WHERE name="NEXUS"').fetchone():
@@ -76,7 +89,31 @@ class Store:
         """CPU work only: safe on a worker thread; never touch the SQLite store."""
         return hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1).hex()
 
+    @staticmethod
+    def validate_name(username):
+        require(isinstance(username, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{2,19}', username),
+                'Name: 3–20 letters, numbers, underscores.')
+        return username
+
+    @staticmethod
+    def validate_password(password):
+        require(isinstance(password, str) and 8 <= len(password) <= 128,
+                'Use a password with 8–128 characters.')
+        try:
+            password.encode('utf-8')
+        except UnicodeEncodeError:
+            require(False, 'Use valid text for your password.')
+        return password
+
+    @staticmethod
+    def session_hash(token):
+        require(isinstance(token, str) and 1 <= len(token) <= 128, 'Invalid session.')
+        require(re.fullmatch(r'[A-Za-z0-9_-]+', token), 'Invalid session.')
+        return hashlib.sha256(token.encode()).hexdigest()
+
     def _prepare_authentication(self, username, register):
+        self.validate_name(username)
+        require(type(register) is bool, 'Choose sign in or create account.')
         row = self.db.execute('SELECT id,salt,password FROM accounts WHERE username=? COLLATE NOCASE', (username,)).fetchone()
         if register:
             require(row is None, 'That explorer name is already taken.')
@@ -97,6 +134,11 @@ class Store:
                 ident = secrets.token_hex(12)
                 self.db.execute('INSERT INTO accounts VALUES(?,?,?,?,?,?,?,?,?,?)',
                                 (ident, username, plan['salt'], digest, encode(starter()), 'NEXUS', 11.5, 19.4, 0, time.time()))
+                # Import here keeps recovery/account settings separate from storage.
+                from .accounts import new_recovery_code, recovery_digest, RECOVERY_LIFETIME
+                recovery = new_recovery_code()
+                self.db.execute('INSERT INTO accounts_security VALUES(?,?,?,0)',
+                                (ident, recovery_digest(recovery), time.time()+RECOVERY_LIFETIME))
                 pending = self.db.execute('SELECT 1 FROM pending_admins WHERE username=? COLLATE NOCASE', (username,)).fetchone()
                 if pending or (self._local_owner_enabled and not self.has_admins()):
                     self._add_admin(ident, 'named_bootstrap' if pending else 'local_owner')
@@ -106,25 +148,45 @@ class Store:
                 ident = current[0]
             self.assert_not_banned(ident)
             token = secrets.token_urlsafe(32)
+            self.db.execute('DELETE FROM sessions WHERE expires <= ?', (time.time(),))
             self.db.execute('INSERT INTO sessions VALUES(?,?,?)',
                             (hashlib.sha256(token.encode()).hexdigest(), ident, time.time()+30*86400))
+            # Keep this just-issued token and the seven newest other sessions.
+            # This bounds saved bearer credentials even after repeated sign-ins.
+            self.db.execute('''DELETE FROM sessions WHERE account=? AND token!=? AND token NOT IN
+                (SELECT token FROM sessions WHERE account=? AND token!=? ORDER BY expires DESC,token LIMIT ?)''',
+                (ident, self.session_hash(token), ident, self.session_hash(token), self.SESSION_LIMIT-1))
+        if plan['register']:
+            # Delivery only once, after commit. Codes are never persisted in plaintext.
+            if len(self._registration_recovery) >= 128:
+                self._registration_recovery.pop(next(iter(self._registration_recovery)))
+            self._registration_recovery[ident] = recovery
         return ident, token
 
     def authenticate(self, username, password, register=False):
+        self.validate_password(password)
         plan = self._prepare_authentication(username, register)
         return self._finish_authentication(plan, self._password_digest(password, plan['salt']))
 
     async def authenticate_async(self, username, password, register=False):
+        self.validate_password(password)
         plan = self._prepare_authentication(username, register)
         digest = await asyncio.to_thread(self._password_digest, password, plan['salt'])
         return self._finish_authentication(plan, digest)
 
     def resume(self, token):
         row = self.db.execute('SELECT account FROM sessions WHERE token=? AND expires>?',
-                              (hashlib.sha256(token.encode()).hexdigest(), time.time())).fetchone()
-        require(row is not None, 'Session expired. Sign in again.')
+                              (self.session_hash(token), time.time())).fetchone()
+        if row is None:
+            raise SessionExpired('Session expired. Sign in again.')
         self.assert_not_banned(row[0])
         return row[0]
+
+    def take_registration_recovery(self, ident):
+        return self._registration_recovery.pop(ident, None)
+
+    def revoke_session(self, ident, token):
+        self.db.execute('DELETE FROM sessions WHERE token=? AND account=?', (self.session_hash(token), ident))
 
     def has_admins(self):
         return bool(self.db.execute('SELECT 1 FROM admin_roles LIMIT 1').fetchone()
@@ -222,7 +284,10 @@ class Store:
         return World(meta)
 
     def save_meta(self, meta):
-        self.db.execute('INSERT OR REPLACE INTO worlds VALUES(?,?)', (meta['name'], encode(meta)))
+        # REPLACE deletes the world row before inserting: this would cascade-delete
+        # favorites and can violate references from saved tiles or containers.
+        self.db.execute('''INSERT INTO worlds(name,metadata) VALUES(?,?)
+            ON CONFLICT(name) DO UPDATE SET metadata=excluded.metadata''', (meta['name'], encode(meta)))
 
     def load_world(self, name):
         row = self.db.execute('SELECT metadata FROM worlds WHERE name=?', (name,)).fetchone()

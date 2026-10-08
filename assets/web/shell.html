@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>$GODOT_PROJECT_NAME</title>
+		<style>
+:root { color-scheme: dark; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body, #canvas { margin: 0; padding: 0; border: 0; }
+body { color: #effff6; background: #123c43; overflow: hidden; touch-action: none; }
+#canvas { display: block; }
+#canvas:focus { outline: none; }
+#status { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 25% 15%, #297a79 0, transparent 60%), linear-gradient(150deg, #184e58, #122f43); z-index: 10; }
+.boot-card { width: min(440px, calc(100vw - 72px)); text-align: center; }
+.eyebrow { color: #96e5cd; font-size: 11px; letter-spacing: .3em; font-weight: 700; }
+h1 { font-size: clamp(32px, 7vw, 49px); letter-spacing: .06em; margin: 15px 0 8px; font-weight: 900; }
+.tagline { color: #c0e3d7; font-size: 14px; line-height: 1.6; margin: 0 0 28px; }
+.island { position: relative; margin: 32px auto 38px; width: 148px; height: 88px; animation: float 3s ease-in-out infinite; }
+.soil { position: absolute; top: 38px; left: 11px; width: 126px; height: 46px; background: #bd8052; border-top: 9px solid #87e99f; clip-path: polygon(0 0,100% 0,86% 75%,56% 100%,18% 75%); }
+.tree { position: absolute; top: 16px; left: 36px; width: 9px; height: 28px; background: #c49264; }
+.tree::before { content: ""; position: absolute; top: -18px; left: -16px; width: 42px; height: 33px; background: #5dd8a0; border-radius: 50% 60% 35% 35%; box-shadow: inset 7px 5px #92f0ac; }
+.gem { position: absolute; top: 12px; right: 29px; width: 18px; height: 25px; background: #9cebfb; clip-path: polygon(50% 0,100% 35%,75% 100%,25% 100%,0 35%); filter: drop-shadow(0 0 9px #90edff); }
+.spark { position: absolute; width: 5px; height: 5px; background: #ffda94; border-radius: 50%; animation: twinkle 2s ease-in-out infinite alternate; }
+.spark.one { top: 4px; left: 8px; }.spark.two { right: 9px; bottom: 15px; animation-delay: .7s; }
+#status-progress { display: none; appearance: none; border: 0; width: 100%; height: 8px; border-radius: 10px; background: #285965; overflow: hidden; }
+#status-progress::-webkit-progress-bar { background: #285965; border-radius: 10px; }
+#status-progress::-webkit-progress-value { background: linear-gradient(90deg,#63dfb2,#d1f4a3); border-radius: 10px; transition: width .15s; }
+#status-progress::-moz-progress-bar { background: #72e5bb; border-radius: 10px; }
+#status-progress:indeterminate { background: linear-gradient(90deg,#285965 20%,#63dfb2 50%,#285965 80%); background-size: 200% 100%; animation: progress 1.5s linear infinite; }
+#boot-phase { font-size: 12px; color: #bfe8d7; margin: 16px 0; min-height: 18px; }
+#status-notice { display: none; background: #583f45; border: 1px solid #c28480; border-radius: 12px; padding: 16px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+#retry { display: none; background: #74e4bb; color: #163e3e; border: 0; padding: 12px 24px; margin: 18px auto 0; border-radius: 10px; font: inherit; font-size: 14px; cursor: pointer; }
+#retry:focus-visible { outline: 3px solid #f9d493; outline-offset: 3px; }
+.hint { margin-top: 30px; color: #82b7b4; font-size: 11px; }
+@keyframes float { 50% { transform: translateY(-7px); } }
+@keyframes twinkle { to { opacity: .3; transform: scale(.6); } }
+@keyframes progress { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+		</style>
+		$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status" role="status" aria-live="polite">
+            <div class="boot-card">
+                <div class="eyebrow">A LITTLE WORLD. ENDLESS POSSIBILITIES.</div>
+                <div class="island" aria-hidden="true"><div class="soil"></div><div class="tree"></div><div class="gem"></div><div class="spark one"></div><div class="spark two"></div></div>
+                <h1>WORLDFORGE</h1>
+                <p class="tagline">Build somewhere you belong.<br>Explore, create, and bring your friends.</p>
+                <progress id="status-progress" aria-label="Game download"></progress>
+                <p id="boot-phase">Preparing your adventure…</p>
+                <div id="status-notice"></div>
+                <button id="retry" type="button">Try again</button>
+                <p class="hint">Your worlds and progress are saved on your server.</p>
+            </div>
+        </div>
+
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+	const bootPhase = document.getElementById('boot-phase');
+	const retry = document.getElementById('retry');
+	retry.addEventListener('click', () => window.location.reload());
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		bootPhase.textContent = 'Your adventure could not start.';
+		retry.style.display = 'block';
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+					const percent = Math.min(100, Math.floor(current / total * 100));
+					bootPhase.textContent = percent === 100 ? 'Starting your adventure…' : 'Downloading your adventure · ' + percent + '%';
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+					bootPhase.textContent = 'Preparing your adventure…';
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>

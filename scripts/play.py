@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 from importlib import metadata
+import json
 import logging
 from pathlib import Path
 import socket
@@ -16,6 +17,8 @@ import webbrowser
 
 ROOT = Path(__file__).resolve().parents[1]
 HEALTH_MESSAGE = b'WORLDFORGE authority healthy'
+RELEASE = 'stage2'
+PROTOCOL = 2
 
 
 def compatible_dependencies():
@@ -45,6 +48,20 @@ def health_ready(url):
         return False
 
 
+def compatible_server(url):
+    """An older healthy server must not silently serve its older browser build."""
+    try:
+        with urlopen(url + '/version', timeout=1) as response:
+            raw = response.read(4097)
+            if response.status != 200 or len(raw) > 4096:
+                return False
+            version = json.loads(raw)
+            return (isinstance(version, dict) and version.get('release') == RELEASE
+                    and type(version.get('protocol')) is int and version['protocol'] == PROTOCOL)
+    except (HTTPError, URLError, TimeoutError, OSError, ValueError, UnicodeDecodeError):
+        return False
+
+
 def port_busy(port):
     try:
         with socket.create_connection(('127.0.0.1', port), timeout=0.3):
@@ -66,7 +83,7 @@ def open_browser(url, disabled):
 def announce_when_ready(url, disabled, stopped):
     deadline = time.monotonic() + 15
     while not stopped.is_set() and time.monotonic() < deadline:
-        if health_ready(url):
+        if health_ready(url) and compatible_server(url):
             open_browser(url, disabled)
             print('Keep this window open while playing. Press Ctrl+C to save and stop.', flush=True)
             return
@@ -116,6 +133,11 @@ def main(argv=None):
     url = 'http://127.0.0.1:' + str(args.port)
     if port_busy(args.port):
         if health_ready(url):
+            if not compatible_server(url):
+                print('An older or different WORLDFORGE release is still running on this port.')
+                print('Press Ctrl+C in its original server window, then start this Stage 2 launcher again.')
+                print('To run a separate server instead, start with --port 8766.')
+                return 1
             print('WORLDFORGE is already running. Its original server window controls saving and shutdown.')
             open_browser(url, args.no_browser)
             return 0

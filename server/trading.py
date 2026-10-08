@@ -24,6 +24,7 @@ class Trading:
         require(isinstance(d.get('player'), str), 'Choose an explorer to trade with.')
         other = self.game.players.get(d['player'])
         require(other is not None and other != p and self.nearby(p, other), 'Find an explorer within seven tiles.')
+        require(not self.game.social.blocked(p['id'], other['id']), 'Contact is blocked between these explorers.')
         require(not p['trade'] and not other['trade'], 'An explorer is already trading.')
         require(self.game.clock()-p.get('last_invite', 0) >= 2, 'Please wait before inviting again.')
         p['last_invite'] = self.game.clock()
@@ -36,6 +37,7 @@ class Trading:
         require(invite and invite[0] == d.get('player') and invite[1] > self.game.clock(), 'Trade invitation expired.')
         other = self.game.players.get(invite[0])
         require(other is not None and self.nearby(p, other) and not p['trade'] and not other['trade'], 'Trade unavailable.')
+        require(not self.game.social.blocked(p['id'], other['id']), 'Contact is blocked between these explorers.')
         ident = secrets.token_hex(12)
         trade = {'id': ident, 'players': [other['id'], p['id']], 'names': [other['name'], p['name']],
                  'offers': {p['id']: {}, other['id']: {}}, 'locked': [], 'confirmed': [], 'revision': 0}

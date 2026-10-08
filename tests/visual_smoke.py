@@ -102,14 +102,15 @@ async def run():
                     await page.screenshot(path=str(ARTIFACTS/'upgrade-catalogue.png'))
                     # The search field and exact catalogue choice exercise procedural
                     # icons and descriptions instead of sending an injected grant.
-                    await page.mouse.click(430,333)
-                    await page.keyboard.type('Lumen lamp')
-                    await asyncio.sleep(.3)
-                    await page.mouse.click(430,432)
+                    await client.fill('lumen_lamp',placeholder='Search by name or item ID…')
+                    listing = await client.control(kind='ItemList')
+                    assert len(listing['items']) == 1
+                    rect = listing['rect']
+                    await page.mouse.click(rect['x']+rect['w']*.4,rect['y']+22)
                     await asyncio.sleep(.2)
                     await page.screenshot(path=str(ARTIFACTS/'upgrade-catalogue-search.png'))
                     before = client.quantity('lumen_lamp')
-                    await page.mouse.click(944,673)
+                    await client.click('Give selected item',kind='Button')
                     await client.wait(lambda:client.quantity('lumen_lamp')>before,'grant new lamp through admin UI')
                     assert not client.errors, 'Browser rendering errors: '+str(client.errors)
                     errors = [m['text'] for m in client.messages if m['type']=='error']

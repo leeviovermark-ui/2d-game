@@ -13,19 +13,19 @@ def normalize(name):
     return name
 
 
-def generate(seed, biome):
+def generate(seed, biome, width=WIDTH, height=HEIGHT, generation=1):
     rng = random.Random(seed)
     cells = {}
     heights = []
     surface = {'forest': 'grass', 'desert': 'sand', 'snow': 'snow'}[biome]
-    for x in range(WIDTH):
+    for x in range(width):
         h = 21 + round(math.sin(x * .13 + seed % 8) * 2 + math.sin(x * .31) * 1.5)
         if x < 27:
             h = 21
         heights.append(h)
-        for y in range(h, HEIGHT):
+        for y in range(h, height):
             item = surface if y == h else ('dirt' if y < h + 4 else 'stone')
-            cave = y > h + 5 and y < HEIGHT - 2 and math.sin(x*.31 + y*.27) + math.cos(x*.19 - y*.33) > 1.25
+            cave = y > h + 5 and y < height - 2 and math.sin(x*.31 + y*.27) + math.cos(x*.19 - y*.33) > 1.25
             if cave:
                 continue
             if item == 'stone':
@@ -38,7 +38,10 @@ def generate(seed, biome):
                     item = 'crystal'
             cells[(x, y)] = item
     if biome != 'desert':
-        for x in [5, 29, 39, 53, 65, 79, 95, 113, 131]:
+        tree_columns = [5, 29, 39, 53, 65, 79, 95, 113, 131]
+        if generation >= 2:
+            tree_columns.extend(range(149, width-5, 17))
+        for x in tree_columns:
             h = heights[x]
             tree_h = rng.randint(4, 6)
             for y in range(h - tree_h, h):
@@ -58,6 +61,34 @@ def generate(seed, biome):
     cells[(15, 20)] = 'bench'
     cells[(16, 20)] = 'chest'
     cells[(20, 19)] = 'torch'
+    if generation >= 2:
+        veins = random.Random(seed ^ 0x5CA1)
+        for (x, y), item in list(cells.items()):
+            if item == 'stone':
+                roll = veins.random()
+                if roll < .035:
+                    cells[(x,y)] = 'copper_ore'
+                elif roll < .045 and y > 32:
+                    cells[(x,y)] = 'amber'
+                elif roll < .052 and y > 43:
+                    cells[(x,y)] = 'amethyst'
+                elif roll < .11:
+                    cells[(x,y)] = 'basalt' if biome == 'desert' else ('granite' if biome == 'snow' else 'limestone')
+            elif item == 'dirt' and y >= heights[x]+2 and veins.random() < .20:
+                cells[(x,y)] = 'clay'
+        # Shallow lakes are reachable by a held jump. Their clay bed is useful for pottery.
+        for left in range(34, width-12, 72):
+            surface_y = min(heights[left:left+10])
+            for x in range(left, left+10):
+                depth = 1 if x in (left,left+9) else 2
+                for y in range(max(2, surface_y-8), surface_y+depth):
+                    cells.pop((x,y), None)
+                for y in range(surface_y, surface_y+depth):
+                    cells[(x,y)] = 'water'
+                cells[(x,surface_y+depth)] = 'clay'
+        if biome == 'snow':
+            for x in range(55, width-4, 19):
+                cells[(x,heights[x])] = 'ice'
     return cells
 
 
@@ -65,7 +96,9 @@ class World:
     def __init__(self, meta, deltas=(), crops=(), containers=(), drops=()):
         self.meta = meta
         self.name = meta['name']
-        self.cells = generate(meta['seed'], meta['biome'])
+        self.width = int(meta.get('width', WIDTH))
+        self.height = int(meta.get('height', HEIGHT))
+        self.cells = generate(meta['seed'], meta['biome'], self.width, self.height, meta.get('generation', 1))
         for x, y, item in deltas:
             if item:
                 self.cells[(x, y)] = item
@@ -82,7 +115,7 @@ class World:
     def collides(self, x, y):
         if not math.isfinite(x) or not math.isfinite(y):
             return True
-        if x < MOVE['width']/2 or x > WIDTH - MOVE['width']/2 or y < 0 or y + MOVE['height'] > HEIGHT:
+        if x < MOVE['width']/2 or x > self.width - MOVE['width']/2 or y < 0 or y + MOVE['height'] > self.height:
             return True
         for tx in range(math.floor(x - MOVE['width']/2), math.floor(x + MOVE['width']/2 - .0001) + 1):
             for ty in range(math.floor(y), math.floor(y + MOVE['height'] - .0001) + 1):
@@ -98,8 +131,8 @@ class World:
         # Choose the nearest supported position in both axes. A roof or a floating
         # platform must not redirect arrivals far above an otherwise safe spawn.
         best, best_distance = None, math.inf
-        xs = sorted({preferred[0], *(x + .5 for x in range(WIDTH))}, key=lambda x: abs(x - preferred[0]))
-        floors = sorted(range(2, HEIGHT + 1), key=lambda ty: abs(ty - MOVE['height'] - .001 - preferred[1]))
+        xs = sorted({preferred[0], *(x + .5 for x in range(self.width))}, key=lambda x: abs(x - preferred[0]))
+        floors = sorted(range(2, self.height + 1), key=lambda ty: abs(ty - MOVE['height'] - .001 - preferred[1]))
         for x in xs:
             if (x - preferred[0]) ** 2 > best_distance:
                 break
@@ -114,7 +147,7 @@ class World:
         return best
 
     def snapshot(self):
-        return {'meta': self.meta, 'width': WIDTH, 'height': HEIGHT,
+        return {'meta': self.meta, 'width': self.width, 'height': self.height,
                 'tiles': [[x, y, item] for (x, y), item in self.cells.items()],
                 'crops': [[x, y, t] for (x, y), t in self.crops.items()],
                 'drops': list(self.drops.values())}

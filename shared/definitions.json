@@ -1,89 +1,3668 @@
 {
   "version": 1,
-  "movement": {"speed":6.6,"acceleration":52,"friction":64,"gravity":31,"jump":11.8,"air_control":0.8,"width":0.66,"height":1.55,"reach":5,"coyote":0.1,"jump_buffer":0.12,"jump_cut":5.0},
+  "movement": {
+    "speed": 6.6,
+    "acceleration": 52,
+    "friction": 64,
+    "gravity": 31,
+    "jump": 11.8,
+    "air_control": 0.8,
+    "width": 0.66,
+    "height": 1.55,
+    "reach": 5,
+    "coyote": 0.1,
+    "jump_buffer": 0.12,
+    "jump_cut": 5.0,
+    "sprint_speed": 9.2,
+    "sprint_drain": 22,
+    "energy_recovery": 14
+  },
   "items": [
-    {"id":"dirt","name":"Earth","description":"A little ground to call your own.","category":"block","color":"786044","stack":99,"solid":true,"hardness":0.45,"drop":"dirt"},
-    {"id":"grass","name":"Meadow turf","description":"Wild grass on rich earth.","category":"block","color":"71935f","stack":99,"solid":true,"hardness":0.45,"drop":"dirt"},
-    {"id":"stone","name":"Stone","description":"The backbone of every good build.","category":"block","color":"7b8790","stack":99,"solid":true,"hardness":1.4,"level":1,"drop":"stone"},
-    {"id":"sand","name":"Dune sand","description":"Smelt into clear glass.","category":"block","color":"ccad70","stack":99,"solid":true,"hardness":0.5,"drop":"sand"},
-    {"id":"snow","name":"Snowpack","description":"The quiet of the highlands.","category":"block","color":"bbd0ce","stack":99,"solid":true,"hardness":0.5,"drop":"snow"},
-    {"id":"wood","name":"Cedar log","description":"Gather from the trunks of wild cedars.","category":"block","color":"85684d","stack":99,"solid":false,"hardness":0.7,"drop":"wood"},
-    {"id":"leaves","name":"Cedar bough","description":"Soft, aromatic forest foliage.","category":"block","color":"4c785e","stack":99,"solid":false,"hardness":0.3,"drop":"fiber"},
-    {"id":"planks","name":"Cedar planks","description":"Warm timber for walls and walkways.","category":"block","color":"a77f52","stack":99,"solid":true,"hardness":0.65,"drop":"planks"},
-    {"id":"brick","name":"Stone brick","description":"Cut and fitted stone.","category":"block","color":"7d8c8c","stack":99,"solid":true,"hardness":1.1,"level":1,"drop":"brick"},
-    {"id":"glass","name":"Glass","description":"Let the landscape into your home.","category":"block","color":"83b8ba","stack":99,"solid":true,"hardness":0.4,"drop":"glass"},
-    {"id":"coal_ore","name":"Coal seam","description":"Black fuel deep beneath the meadow.","category":"block","color":"62696b","stack":99,"solid":true,"hardness":1.6,"level":1,"drop":"coal"},
-    {"id":"iron_ore","name":"Iron vein","description":"A better pick begins here.","category":"block","color":"a88771","stack":99,"solid":true,"hardness":2,"level":2,"drop":"iron_ore"},
-    {"id":"crystal","name":"Lumen crystal","description":"A rare light from the deep.","category":"block","rarity":"rare","color":"93c8c6","stack":99,"solid":true,"hardness":2.8,"level":3,"drop":"crystal"},
-    {"id":"fiber","name":"Wild fiber","description":"Twist into tool bindings.","category":"material","color":"a7b97a","stack":99},
-    {"id":"coal","name":"Coal","description":"Fuel for the furnace.","category":"material","color":"53616a","stack":99},
-    {"id":"iron","name":"Iron ingot","description":"Refined and ready to forge.","category":"material","color":"b3bfc2","stack":99},
-    {"id":"seed","name":"Sungrain seed","description":"Plant on earth. Grows even while you are away.","category":"seed","color":"dfbc66","stack":99,"place":"crop"},
-    {"id":"grain","name":"Sungrain","description":"A golden harvest. Trade it with a neighbor.","category":"material","color":"e4c16a","stack":99},
-    {"id":"crop","name":"Sungrain","description":"Ripens in 90 seconds. Interact to harvest.","category":"crop","color":"cbb561","stack":99,"solid":false,"hardness":0.25,"drop":"seed","growth":90},
-    {"id":"wood_pick","name":"Cedar pickaxe","description":"Mines stone and coal. A first step underground.","category":"tool","color":"c59e6e","stack":1,"level":1,"power":1.3},
-    {"id":"stone_pick","name":"Stone pickaxe","description":"Mines iron veins faster.","category":"tool","color":"a2afb3","stack":1,"level":2,"power":2.1},
-    {"id":"iron_pick","name":"Iron pickaxe","description":"Reaches rare lumen crystals.","category":"tool","rarity":"uncommon","color":"c0ced0","stack":1,"level":3,"power":3.2},
-    {"id":"bench","name":"Workbench","description":"Place, then stand nearby to craft stone tools.","category":"station","color":"ba9060","stack":20,"solid":false,"hardness":0.8,"drop":"bench"},
-    {"id":"furnace","name":"Furnace","description":"Refine iron and glass within five tiles.","category":"station","color":"889396","stack":20,"solid":false,"hardness":1,"drop":"furnace"},
-    {"id":"chest","name":"Storage chest","description":"Twelve secure storage slots. Press E nearby.","category":"storage","color":"b68952","stack":20,"solid":false,"hardness":0.8,"drop":"chest"},
-    {"id":"core","name":"World Core","description":"Place to claim an unowned world and set its permissions.","category":"core","rarity":"rare","color":"80b5b1","stack":1,"solid":false,"hardness":1.4,"drop":"core"},
-    {"id":"torch","name":"Lantern","description":"A warm pool of light for your home.","category":"block","color":"e9b866","stack":99,"solid":false,"hardness":0.2,"drop":"torch","light":true},
-    {"id":"platform","name":"Cedar walkway","description":"A thin wooden building block.","category":"block","color":"a88b60","stack":99,"solid":true,"hardness":0.5,"drop":"platform"},
-    {"id":"moss_brick","name":"Mossy stone brick","description":"Stone softened by green moss. A forest cottage favorite.","category":"block","color":"799073","stack":99,"solid":true,"hardness":1.1,"drop":"moss_brick","level":1},
-    {"id":"slate_brick","name":"Midnight slate","description":"Dark fitted stone for foundations and dramatic roofs.","category":"block","color":"536a78","stack":99,"solid":true,"hardness":1.2,"drop":"slate_brick","level":1},
-    {"id":"sandstone_brick","name":"Sandstone brick","description":"Warm desert masonry cut from dune sand and stone.","category":"block","color":"d1b581","stack":99,"solid":true,"hardness":0.9,"drop":"sandstone_brick","level":1},
-    {"id":"marble","name":"Frost marble","description":"Pale veined masonry made from highland snow and stone.","category":"block","color":"c9d8cf","stack":99,"solid":true,"hardness":1.2,"drop":"marble","level":1},
-    {"id":"terracotta","name":"Terracotta brick","description":"Kiln-fired earth with a warm clay-red finish.","category":"block","color":"bb795d","stack":99,"solid":true,"hardness":0.8,"drop":"terracotta"},
-    {"id":"red_planks","name":"Rosewood planks","description":"Ruby-tinted timber for colorful homes and gardens.","category":"block","color":"ad6d69","stack":99,"solid":true,"hardness":0.65,"drop":"red_planks"},
-    {"id":"blue_planks","name":"Azure planks","description":"Blue-stained timber with a cool coastal finish.","category":"block","color":"688ea6","stack":99,"solid":true,"hardness":0.65,"drop":"blue_planks"},
-    {"id":"green_planks","name":"Sage planks","description":"Green-stained cedar that blends into the forest.","category":"block","color":"749777","stack":99,"solid":true,"hardness":0.65,"drop":"green_planks"},
-    {"id":"timber_beam","name":"Iron-bound timber","description":"A decorative cedar beam. Walk past its sturdy iron bands.","category":"block","color":"a58159","stack":99,"solid":false,"hardness":0.7,"drop":"timber_beam"},
-    {"id":"hedge","name":"Garden hedge","description":"A leafy garden divider you can walk through.","category":"block","color":"527e59","stack":99,"solid":false,"hardness":0.3,"drop":"hedge"},
-    {"id":"flower_pot","name":"Sunbloom planter","description":"A decorative sunbloom in a terracotta pot.","category":"block","color":"d695ad","stack":99,"solid":false,"hardness":0.3,"drop":"flower_pot"},
-    {"id":"chair","name":"Cedar chair","description":"A crafted chair to decorate your home.","category":"block","color":"b29368","stack":99,"solid":false,"hardness":0.5,"drop":"chair"},
-    {"id":"table","name":"Cottage table","description":"A small cedar table set with a ceramic cup.","category":"block","color":"b79a72","stack":99,"solid":false,"hardness":0.5,"drop":"table"},
-    {"id":"bookshelf","name":"Explorer bookshelf","description":"Decorative journals and keepsakes for your study.","category":"block","color":"9e7c55","stack":99,"solid":false,"hardness":0.6,"drop":"bookshelf"},
-    {"id":"tapestry","name":"Sungrain tapestry","description":"A woven hanging with a golden diamond pattern.","category":"block","color":"a97775","stack":99,"solid":false,"hardness":0.3,"drop":"tapestry"},
-    {"id":"rug","name":"Woven rug","description":"A soft decorative runner. Place just above your floor.","category":"block","color":"718fa6","stack":99,"solid":false,"hardness":0.25,"drop":"rug"},
-    {"id":"iron_lantern","name":"Iron lantern","description":"A durable warm light with a wider underground glow.","category":"block","color":"efbe76","stack":99,"solid":false,"hardness":0.4,"drop":"iron_lantern","light":true,"light_radius":5},
-    {"id":"lumen_lamp","name":"Lumen lamp","description":"A cool crystal light for bright caves and elegant homes.","category":"block","color":"92d8ce","stack":99,"solid":false,"hardness":0.4,"drop":"lumen_lamp","light":true,"light_radius":6},
-    {"id":"reinforced_glass","name":"Reinforced glass","description":"Clear glass framed by a strong iron cross.","category":"block","color":"8eafb5","stack":99,"solid":true,"hardness":0.8,"drop":"reinforced_glass"},
-    {"id":"crystal_pick","name":"Lumen pickaxe","description":"Crystal-tipped iron: mines every material with exceptional speed.","category":"tool","rarity":"rare","color":"a0ddd2","stack":1,"level":4,"power":4.8}
+    {
+      "id": "dirt",
+      "name": "Earth",
+      "description": "A little ground to call your own.",
+      "category": "block",
+      "color": "997250",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.45,
+      "drop": "dirt",
+      "texture": "soil"
+    },
+    {
+      "id": "grass",
+      "name": "Meadow turf",
+      "description": "Wild grass on rich earth.",
+      "category": "block",
+      "color": "82b96b",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.45,
+      "drop": "dirt",
+      "texture": "turf"
+    },
+    {
+      "id": "stone",
+      "name": "Stone",
+      "description": "The backbone of every good build.",
+      "category": "block",
+      "color": "97a5af",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.4,
+      "level": 1,
+      "drop": "stone",
+      "texture": "rock"
+    },
+    {
+      "id": "sand",
+      "name": "Dune sand",
+      "description": "Smelt into clear glass.",
+      "category": "block",
+      "color": "e7cb8c",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.5,
+      "drop": "sand",
+      "texture": "sand"
+    },
+    {
+      "id": "snow",
+      "name": "Snowpack",
+      "description": "The quiet of the highlands.",
+      "category": "block",
+      "color": "d8ecec",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.5,
+      "drop": "snow",
+      "texture": "snow"
+    },
+    {
+      "id": "wood",
+      "name": "Cedar log",
+      "description": "Gather from the trunks of wild cedars.",
+      "category": "block",
+      "color": "a17b51",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.7,
+      "drop": "wood"
+    },
+    {
+      "id": "leaves",
+      "name": "Cedar bough",
+      "description": "Soft, aromatic forest foliage.",
+      "category": "block",
+      "color": "6ea270",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.3,
+      "drop": "fiber"
+    },
+    {
+      "id": "planks",
+      "name": "Cedar planks",
+      "description": "Warm timber for walls and walkways.",
+      "category": "block",
+      "color": "c99b63",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "planks",
+      "texture": "planks"
+    },
+    {
+      "id": "brick",
+      "name": "Stone brick",
+      "description": "Cut and fitted stone.",
+      "category": "block",
+      "color": "a2aca7",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "level": 1,
+      "drop": "brick",
+      "texture": "brick"
+    },
+    {
+      "id": "glass",
+      "name": "Glass",
+      "description": "Let the landscape into your home.",
+      "category": "block",
+      "color": "a0dce3",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "glass",
+      "texture": "glass"
+    },
+    {
+      "id": "coal_ore",
+      "name": "Coal seam",
+      "description": "Black fuel deep beneath the meadow.",
+      "category": "block",
+      "color": "707b87",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.6,
+      "level": 1,
+      "drop": "coal",
+      "texture": "ore"
+    },
+    {
+      "id": "iron_ore",
+      "name": "Iron vein",
+      "description": "A better pick begins here.",
+      "category": "block",
+      "color": "c5a088",
+      "stack": 99,
+      "solid": true,
+      "hardness": 2,
+      "level": 2,
+      "drop": "iron_ore",
+      "texture": "ore"
+    },
+    {
+      "id": "crystal",
+      "name": "Lumen crystal",
+      "description": "A rare light from the deep.",
+      "category": "block",
+      "rarity": "rare",
+      "color": "96e3d6",
+      "stack": 99,
+      "solid": true,
+      "hardness": 2.8,
+      "level": 3,
+      "drop": "crystal",
+      "texture": "gem_rock"
+    },
+    {
+      "id": "fiber",
+      "name": "Wild fiber",
+      "description": "Twist into tool bindings.",
+      "category": "material",
+      "color": "b8ce83",
+      "stack": 99
+    },
+    {
+      "id": "coal",
+      "name": "Coal",
+      "description": "Fuel for the furnace.",
+      "category": "material",
+      "color": "53616a",
+      "stack": 99
+    },
+    {
+      "id": "iron",
+      "name": "Iron ingot",
+      "description": "Refined and ready to forge.",
+      "category": "material",
+      "color": "d1dae0",
+      "stack": 99
+    },
+    {
+      "id": "seed",
+      "name": "Sungrain seed",
+      "description": "Plant on earth. Grows even while you are away.",
+      "category": "seed",
+      "color": "dfbc66",
+      "stack": 99,
+      "place": "crop"
+    },
+    {
+      "id": "grain",
+      "name": "Sungrain",
+      "description": "A golden harvest. Trade it with a neighbor.",
+      "category": "material",
+      "color": "e4c16a",
+      "stack": 99
+    },
+    {
+      "id": "crop",
+      "name": "Sungrain",
+      "description": "Ripens in 90 seconds. Interact to harvest.",
+      "category": "crop",
+      "color": "cbb561",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.25,
+      "drop": "seed",
+      "growth": 90,
+      "harvest": {
+        "grain": 3
+      },
+      "harvest_seed": "seed"
+    },
+    {
+      "id": "wood_pick",
+      "name": "Cedar pickaxe",
+      "description": "Mines stone and coal. A first step underground.",
+      "category": "tool",
+      "color": "c59e6e",
+      "stack": 1,
+      "level": 1,
+      "power": 1.3
+    },
+    {
+      "id": "stone_pick",
+      "name": "Stone pickaxe",
+      "description": "Mines iron veins faster.",
+      "category": "tool",
+      "color": "a2afb3",
+      "stack": 1,
+      "level": 2,
+      "power": 2.1
+    },
+    {
+      "id": "iron_pick",
+      "name": "Iron pickaxe",
+      "description": "Reaches rare lumen crystals.",
+      "category": "tool",
+      "rarity": "uncommon",
+      "color": "c0ced0",
+      "stack": 1,
+      "level": 3,
+      "power": 3.2
+    },
+    {
+      "id": "bench",
+      "name": "Workbench",
+      "description": "Place, then stand nearby to craft stone tools.",
+      "category": "station",
+      "color": "ba9060",
+      "stack": 20,
+      "solid": false,
+      "hardness": 0.8,
+      "drop": "bench"
+    },
+    {
+      "id": "furnace",
+      "name": "Furnace",
+      "description": "Refine iron and glass within five tiles.",
+      "category": "station",
+      "color": "889396",
+      "stack": 20,
+      "solid": false,
+      "hardness": 1,
+      "drop": "furnace"
+    },
+    {
+      "id": "chest",
+      "name": "Storage chest",
+      "description": "Twelve secure storage slots. Press E nearby.",
+      "category": "storage",
+      "color": "b68952",
+      "stack": 20,
+      "solid": false,
+      "hardness": 0.8,
+      "drop": "chest"
+    },
+    {
+      "id": "core",
+      "name": "World Core",
+      "description": "Place to claim an unowned world and set its permissions.",
+      "category": "core",
+      "rarity": "rare",
+      "color": "80b5b1",
+      "stack": 1,
+      "solid": false,
+      "hardness": 1.4,
+      "drop": "core"
+    },
+    {
+      "id": "torch",
+      "name": "Lantern",
+      "description": "A warm pool of light for your home.",
+      "category": "block",
+      "color": "ffd184",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.2,
+      "drop": "torch",
+      "light": true
+    },
+    {
+      "id": "platform",
+      "name": "Cedar walkway",
+      "description": "A thin wooden building block.",
+      "category": "block",
+      "color": "c6a372",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.5,
+      "drop": "platform"
+    },
+    {
+      "id": "moss_brick",
+      "name": "Mossy stone brick",
+      "description": "Stone softened by green moss. A forest cottage favorite.",
+      "category": "block",
+      "color": "94b38a",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "moss_brick",
+      "level": 1,
+      "texture": "brick"
+    },
+    {
+      "id": "slate_brick",
+      "name": "Midnight slate",
+      "description": "Dark fitted stone for foundations and dramatic roofs.",
+      "category": "block",
+      "color": "71899e",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.2,
+      "drop": "slate_brick",
+      "level": 1,
+      "texture": "brick"
+    },
+    {
+      "id": "sandstone_brick",
+      "name": "Sandstone brick",
+      "description": "Warm desert masonry cut from dune sand and stone.",
+      "category": "block",
+      "color": "e3c591",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.9,
+      "drop": "sandstone_brick",
+      "level": 1,
+      "texture": "brick"
+    },
+    {
+      "id": "marble",
+      "name": "Frost marble",
+      "description": "Pale veined masonry made from highland snow and stone.",
+      "category": "block",
+      "color": "e3e9db",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.2,
+      "drop": "marble",
+      "level": 1,
+      "texture": "marble"
+    },
+    {
+      "id": "terracotta",
+      "name": "Terracotta brick",
+      "description": "Kiln-fired earth with a warm clay-red finish.",
+      "category": "block",
+      "color": "d99a78",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "terracotta",
+      "texture": "brick"
+    },
+    {
+      "id": "red_planks",
+      "name": "Rosewood planks",
+      "description": "Ruby-tinted timber for colorful homes and gardens.",
+      "category": "block",
+      "color": "d89690",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "red_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "blue_planks",
+      "name": "Azure planks",
+      "description": "Blue-stained timber with a cool coastal finish.",
+      "category": "block",
+      "color": "8eb9d1",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "blue_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "green_planks",
+      "name": "Sage planks",
+      "description": "Green-stained cedar that blends into the forest.",
+      "category": "block",
+      "color": "98bd93",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "green_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "timber_beam",
+      "name": "Iron-bound timber",
+      "description": "A decorative cedar beam. Walk past its sturdy iron bands.",
+      "category": "block",
+      "color": "a58159",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.7,
+      "drop": "timber_beam"
+    },
+    {
+      "id": "hedge",
+      "name": "Garden hedge",
+      "description": "A leafy garden divider you can walk through.",
+      "category": "block",
+      "color": "72a76d",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.3,
+      "drop": "hedge"
+    },
+    {
+      "id": "flower_pot",
+      "name": "Sunbloom planter",
+      "description": "A decorative sunbloom in a terracotta pot.",
+      "category": "block",
+      "color": "ebb2c4",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.3,
+      "drop": "flower_pot"
+    },
+    {
+      "id": "chair",
+      "name": "Cedar chair",
+      "description": "A crafted chair to decorate your home.",
+      "category": "block",
+      "color": "ceaf7f",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.5,
+      "drop": "chair"
+    },
+    {
+      "id": "table",
+      "name": "Cottage table",
+      "description": "A small cedar table set with a ceramic cup.",
+      "category": "block",
+      "color": "d2b387",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.5,
+      "drop": "table"
+    },
+    {
+      "id": "bookshelf",
+      "name": "Explorer bookshelf",
+      "description": "Decorative journals and keepsakes for your study.",
+      "category": "block",
+      "color": "b9966c",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.6,
+      "drop": "bookshelf"
+    },
+    {
+      "id": "tapestry",
+      "name": "Sungrain tapestry",
+      "description": "A woven hanging with a golden diamond pattern.",
+      "category": "block",
+      "color": "c39494",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.3,
+      "drop": "tapestry"
+    },
+    {
+      "id": "rug",
+      "name": "Woven rug",
+      "description": "A soft decorative runner. Place just above your floor.",
+      "category": "block",
+      "color": "91b5ce",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.25,
+      "drop": "rug"
+    },
+    {
+      "id": "iron_lantern",
+      "name": "Iron lantern",
+      "description": "A durable warm light with a wider underground glow.",
+      "category": "block",
+      "color": "ffd695",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "iron_lantern",
+      "light": true,
+      "light_radius": 5
+    },
+    {
+      "id": "lumen_lamp",
+      "name": "Lumen lamp",
+      "description": "A cool crystal light for bright caves and elegant homes.",
+      "category": "block",
+      "color": "a7efe2",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "lumen_lamp",
+      "light": true,
+      "light_radius": 6
+    },
+    {
+      "id": "reinforced_glass",
+      "name": "Reinforced glass",
+      "description": "Clear glass framed by a strong iron cross.",
+      "category": "block",
+      "color": "aed5db",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "reinforced_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "crystal_pick",
+      "name": "Lumen pickaxe",
+      "description": "Crystal-tipped iron: mines every material with exceptional speed.",
+      "category": "tool",
+      "rarity": "rare",
+      "color": "a0ddd2",
+      "stack": 1,
+      "level": 4,
+      "power": 4.8
+    },
+    {
+      "id": "clay",
+      "name": "River clay",
+      "description": "River clay for creative worlds.",
+      "category": "block",
+      "color": "d79879",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.5,
+      "drop": "clay",
+      "texture": "rock",
+      "level": 0,
+      "rarity": "common"
+    },
+    {
+      "id": "basalt",
+      "name": "Basalt",
+      "description": "Basalt for creative worlds.",
+      "category": "block",
+      "color": "536b87",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.5,
+      "drop": "basalt",
+      "texture": "rock",
+      "level": 1,
+      "rarity": "common"
+    },
+    {
+      "id": "limestone",
+      "name": "Limestone",
+      "description": "Limestone for creative worlds.",
+      "category": "block",
+      "color": "d9d7b8",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.0,
+      "drop": "limestone",
+      "texture": "rock",
+      "level": 1,
+      "rarity": "common"
+    },
+    {
+      "id": "granite",
+      "name": "Rose granite",
+      "description": "Rose granite for creative worlds.",
+      "category": "block",
+      "color": "b99696",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.4,
+      "drop": "granite",
+      "texture": "rock",
+      "level": 1,
+      "rarity": "common"
+    },
+    {
+      "id": "copper_ore",
+      "name": "Copper vein",
+      "description": "Copper vein for creative worlds.",
+      "category": "block",
+      "color": "eea26e",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.7,
+      "drop": "copper_ore",
+      "texture": "ore",
+      "level": 1,
+      "rarity": "common"
+    },
+    {
+      "id": "amber",
+      "name": "Amber cluster",
+      "description": "Amber cluster for creative worlds.",
+      "category": "block",
+      "color": "ffc66b",
+      "stack": 99,
+      "solid": true,
+      "hardness": 2.0,
+      "drop": "amber",
+      "texture": "gem_rock",
+      "level": 2,
+      "rarity": "common"
+    },
+    {
+      "id": "amethyst",
+      "name": "Amethyst geode",
+      "description": "Amethyst geode for creative worlds.",
+      "category": "block",
+      "color": "c397ef",
+      "stack": 99,
+      "solid": true,
+      "hardness": 3.0,
+      "drop": "amethyst",
+      "texture": "gem_rock",
+      "level": 3,
+      "rarity": "rare"
+    },
+    {
+      "id": "ice",
+      "name": "Clear ice",
+      "description": "Clear ice for creative worlds.",
+      "category": "block",
+      "color": "aae9f4",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.6,
+      "drop": "ice",
+      "texture": "rock",
+      "level": 0,
+      "rarity": "common"
+    },
+    {
+      "id": "water",
+      "name": "Spring water",
+      "description": "A shallow fishing pool. Cast a fishing rod nearby.",
+      "category": "block",
+      "color": "5dbfe9",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.25,
+      "drop": "water",
+      "texture": "water",
+      "fluid": true
+    },
+    {
+      "id": "copper",
+      "name": "Copper ingot",
+      "description": "Copper ingot for creative worlds.",
+      "category": "material",
+      "color": "e99f74",
+      "stack": 99,
+      "texture": "ingot"
+    },
+    {
+      "id": "cloth",
+      "name": "Woven cloth",
+      "description": "Woven cloth for creative worlds.",
+      "category": "material",
+      "color": "f4dab2",
+      "stack": 99,
+      "texture": "cloth"
+    },
+    {
+      "id": "rope",
+      "name": "Braided rope",
+      "description": "Braided rope for creative worlds.",
+      "category": "material",
+      "color": "c9ae71",
+      "stack": 99,
+      "texture": "rope"
+    },
+    {
+      "id": "paper",
+      "name": "Handmade paper",
+      "description": "Handmade paper for creative worlds.",
+      "category": "material",
+      "color": "fff2cd",
+      "stack": 99,
+      "texture": "paper"
+    },
+    {
+      "id": "bottle",
+      "name": "Glass bottle",
+      "description": "Glass bottle for creative worlds.",
+      "category": "material",
+      "color": "a1e6ea",
+      "stack": 99,
+      "texture": "bottle"
+    },
+    {
+      "id": "carrot_seed",
+      "name": "Carrot seeds",
+      "description": "Plant on earth or meadow turf. Harvest ripe carrot.",
+      "category": "seed",
+      "color": "eac990",
+      "stack": 99,
+      "texture": "seed",
+      "place": "carrot_crop"
+    },
+    {
+      "id": "carrot_crop",
+      "name": "Carrot patch",
+      "description": "Ripens in 100 seconds, even while you are away.",
+      "category": "crop",
+      "color": "f3a355",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.25,
+      "drop": "carrot_seed",
+      "texture": "carrot_crop",
+      "growth": 100,
+      "harvest": {
+        "carrot": 2
+      },
+      "harvest_seed": "carrot_seed"
+    },
+    {
+      "id": "carrot",
+      "name": "Carrot",
+      "description": "Eat for 6 energy, or cook a meal.",
+      "category": "food",
+      "color": "f3a355",
+      "stack": 99,
+      "texture": "carrot",
+      "food": {
+        "energy": 6
+      }
+    },
+    {
+      "id": "tomato_seed",
+      "name": "Tomato seeds",
+      "description": "Plant on earth or meadow turf. Harvest ripe tomato.",
+      "category": "seed",
+      "color": "eac990",
+      "stack": 99,
+      "texture": "seed",
+      "place": "tomato_crop"
+    },
+    {
+      "id": "tomato_crop",
+      "name": "Tomato patch",
+      "description": "Ripens in 120 seconds, even while you are away.",
+      "category": "crop",
+      "color": "ee7469",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.25,
+      "drop": "tomato_seed",
+      "texture": "tomato_crop",
+      "growth": 120,
+      "harvest": {
+        "tomato": 2
+      },
+      "harvest_seed": "tomato_seed"
+    },
+    {
+      "id": "tomato",
+      "name": "Tomato",
+      "description": "Eat for 6 energy, or cook a meal.",
+      "category": "food",
+      "color": "ee7469",
+      "stack": 99,
+      "texture": "tomato",
+      "food": {
+        "energy": 6
+      }
+    },
+    {
+      "id": "berry_seed",
+      "name": "Moonberry seeds",
+      "description": "Plant on earth or meadow turf. Harvest ripe moonberry.",
+      "category": "seed",
+      "color": "eac990",
+      "stack": 99,
+      "texture": "seed",
+      "place": "berry_crop"
+    },
+    {
+      "id": "berry_crop",
+      "name": "Moonberry patch",
+      "description": "Ripens in 150 seconds, even while you are away.",
+      "category": "crop",
+      "color": "b58bea",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.25,
+      "drop": "berry_seed",
+      "texture": "berry_crop",
+      "growth": 150,
+      "harvest": {
+        "berry": 3
+      },
+      "harvest_seed": "berry_seed"
+    },
+    {
+      "id": "berry",
+      "name": "Moonberry",
+      "description": "Eat for 4 energy, or cook a meal.",
+      "category": "food",
+      "color": "b58bea",
+      "stack": 99,
+      "texture": "berry",
+      "food": {
+        "energy": 4
+      }
+    },
+    {
+      "id": "trout",
+      "name": "Silverfin trout",
+      "description": "Eat to restore 8 energy.",
+      "category": "food",
+      "color": "91d7db",
+      "stack": 99,
+      "texture": "trout",
+      "food": {
+        "energy": 8
+      }
+    },
+    {
+      "id": "bread",
+      "name": "Sungrain bread",
+      "description": "Eat to restore 20 energy.",
+      "category": "food",
+      "color": "e4b773",
+      "stack": 99,
+      "texture": "bread",
+      "food": {
+        "energy": 20
+      }
+    },
+    {
+      "id": "baked_trout",
+      "name": "Herb-roasted trout",
+      "description": "Eat to restore 30 energy.",
+      "category": "food",
+      "color": "e7b694",
+      "stack": 99,
+      "texture": "baked_trout",
+      "food": {
+        "energy": 30
+      }
+    },
+    {
+      "id": "berry_pie",
+      "name": "Moonberry pie",
+      "description": "Eat to restore 40 energy.",
+      "category": "food",
+      "color": "b58cf2",
+      "stack": 99,
+      "texture": "berry_pie",
+      "food": {
+        "energy": 40
+      }
+    },
+    {
+      "id": "vegetable_stew",
+      "name": "Garden stew",
+      "description": "Eat to restore 45 energy.",
+      "category": "food",
+      "color": "e4a06c",
+      "stack": 99,
+      "texture": "vegetable_stew",
+      "food": {
+        "energy": 45
+      }
+    },
+    {
+      "id": "honey_bread",
+      "name": "Amber honey loaf",
+      "description": "Eat to restore 35 energy.",
+      "category": "food",
+      "color": "f0c568",
+      "stack": 99,
+      "texture": "honey_bread",
+      "food": {
+        "energy": 35
+      }
+    },
+    {
+      "id": "kiln",
+      "name": "Potter kiln",
+      "description": "Place nearby to unlock specialty recipes and timed processing.",
+      "category": "station",
+      "color": "cf8d6d",
+      "stack": 20,
+      "solid": false,
+      "hardness": 1,
+      "drop": "kiln",
+      "texture": "kiln"
+    },
+    {
+      "id": "loom",
+      "name": "Weaver loom",
+      "description": "Place nearby to unlock specialty recipes and timed processing.",
+      "category": "station",
+      "color": "d6b27d",
+      "stack": 20,
+      "solid": false,
+      "hardness": 1,
+      "drop": "loom",
+      "texture": "loom"
+    },
+    {
+      "id": "cooking_pot",
+      "name": "Cooking hearth",
+      "description": "Place nearby to unlock specialty recipes and timed processing.",
+      "category": "station",
+      "color": "e6aa79",
+      "stack": 20,
+      "solid": false,
+      "hardness": 1,
+      "drop": "cooking_pot",
+      "texture": "cooking_pot"
+    },
+    {
+      "id": "crystal_press",
+      "name": "Crystal workshop",
+      "description": "Place nearby to unlock specialty recipes and timed processing.",
+      "category": "station",
+      "color": "bb9aee",
+      "stack": 20,
+      "solid": false,
+      "hardness": 1,
+      "drop": "crystal_press",
+      "texture": "crystal_press"
+    },
+    {
+      "id": "fishing_rod",
+      "name": "Willow fishing rod",
+      "description": "Select, then interact with nearby water to catch silverfin trout.",
+      "category": "tool",
+      "color": "d7b584",
+      "stack": 1,
+      "texture": "fishing_rod",
+      "fishing": true,
+      "level": 1,
+      "power": 0.8
+    },
+    {
+      "id": "copper_pick",
+      "name": "Copper pickaxe",
+      "description": "A refined pickaxe with mining power 2.6.",
+      "category": "tool",
+      "color": "eda87c",
+      "stack": 1,
+      "texture": "pick",
+      "level": 2,
+      "power": 2.6,
+      "rarity": "uncommon"
+    },
+    {
+      "id": "amethyst_pick",
+      "name": "Amethyst pickaxe",
+      "description": "A refined pickaxe with mining power 5.8.",
+      "category": "tool",
+      "color": "d3afff",
+      "stack": 1,
+      "texture": "pick",
+      "level": 4,
+      "power": 5.8,
+      "rarity": "rare"
+    },
+    {
+      "id": "clay_brick",
+      "name": "Fired clay brick",
+      "description": "Fired clay brick for creative worlds.",
+      "category": "block",
+      "color": "dc9a7a",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "clay_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "white_brick",
+      "name": "Ivory brick",
+      "description": "Ivory brick for creative worlds.",
+      "category": "block",
+      "color": "ecdfc2",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "white_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "basalt_brick",
+      "name": "Basalt brick",
+      "description": "Basalt brick for creative worlds.",
+      "category": "block",
+      "color": "64778f",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "basalt_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "granite_brick",
+      "name": "Rose granite brick",
+      "description": "Rose granite brick for creative worlds.",
+      "category": "block",
+      "color": "c6a7a1",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "granite_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "copper_brick",
+      "name": "Copper panels",
+      "description": "Copper panels for creative worlds.",
+      "category": "block",
+      "color": "d79871",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "copper_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "amber_brick",
+      "name": "Amber mosaic",
+      "description": "Amber mosaic for creative worlds.",
+      "category": "block",
+      "color": "ebbe73",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "amber_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "crystal_brick",
+      "name": "Lumen masonry",
+      "description": "Lumen masonry for creative worlds.",
+      "category": "block",
+      "color": "86dace",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "crystal_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "violet_brick",
+      "name": "Amethyst masonry",
+      "description": "Amethyst masonry for creative worlds.",
+      "category": "block",
+      "color": "b7a1dd",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "violet_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "weathered_brick",
+      "name": "Weathered brick",
+      "description": "Weathered brick for creative worlds.",
+      "category": "block",
+      "color": "b7a185",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "weathered_brick",
+      "texture": "brick",
+      "level": 1
+    },
+    {
+      "id": "cobblestone",
+      "name": "Cobblestone",
+      "description": "Cobblestone for creative worlds.",
+      "category": "block",
+      "color": "a1aea7",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "cobblestone",
+      "texture": "cobble",
+      "level": 1
+    },
+    {
+      "id": "river_pebbles",
+      "name": "River pebbles",
+      "description": "River pebbles for creative worlds.",
+      "category": "block",
+      "color": "9cb9b8",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "river_pebbles",
+      "texture": "cobble",
+      "level": 1
+    },
+    {
+      "id": "mosaic",
+      "name": "Sunrise mosaic",
+      "description": "Sunrise mosaic for creative worlds.",
+      "category": "block",
+      "color": "e8b190",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1,
+      "drop": "mosaic",
+      "texture": "mosaic",
+      "level": 1
+    },
+    {
+      "id": "gold_planks",
+      "name": "Honey planks",
+      "description": "Honey planks for creative worlds.",
+      "category": "block",
+      "color": "e3b774",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "gold_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "white_planks",
+      "name": "Birch planks",
+      "description": "Birch planks for creative worlds.",
+      "category": "block",
+      "color": "e6d9bc",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "white_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "violet_planks",
+      "name": "Orchid planks",
+      "description": "Orchid planks for creative worlds.",
+      "category": "block",
+      "color": "b898c9",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "violet_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "pink_planks",
+      "name": "Blossom planks",
+      "description": "Blossom planks for creative worlds.",
+      "category": "block",
+      "color": "dfa0af",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "pink_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "teal_planks",
+      "name": "Lagoon planks",
+      "description": "Lagoon planks for creative worlds.",
+      "category": "block",
+      "color": "72bdb4",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "teal_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "dark_planks",
+      "name": "Walnut planks",
+      "description": "Walnut planks for creative worlds.",
+      "category": "block",
+      "color": "886953",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "dark_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "orange_planks",
+      "name": "Ember planks",
+      "description": "Ember planks for creative worlds.",
+      "category": "block",
+      "color": "d88f62",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "orange_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "mint_planks",
+      "name": "Mint planks",
+      "description": "Mint planks for creative worlds.",
+      "category": "block",
+      "color": "a3cea1",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.65,
+      "drop": "mint_planks",
+      "texture": "planks"
+    },
+    {
+      "id": "rose_glass",
+      "name": "Rose glass",
+      "description": "Rose glass for creative worlds.",
+      "category": "block",
+      "color": "ee9caf",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "rose_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "amber_glass",
+      "name": "Amber glass",
+      "description": "Amber glass for creative worlds.",
+      "category": "block",
+      "color": "f2ca79",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "amber_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "mint_glass",
+      "name": "Mint glass",
+      "description": "Mint glass for creative worlds.",
+      "category": "block",
+      "color": "a3dfb9",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "mint_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "azure_glass",
+      "name": "Azure glass",
+      "description": "Azure glass for creative worlds.",
+      "category": "block",
+      "color": "8bcfed",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "azure_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "violet_glass",
+      "name": "Violet glass",
+      "description": "Violet glass for creative worlds.",
+      "category": "block",
+      "color": "c5a8ed",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "violet_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "smoke_glass",
+      "name": "Smoke glass",
+      "description": "Smoke glass for creative worlds.",
+      "category": "block",
+      "color": "8c9cae",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "smoke_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "teal_glass",
+      "name": "Teal glass",
+      "description": "Teal glass for creative worlds.",
+      "category": "block",
+      "color": "6ed1c7",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "teal_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "frost_glass",
+      "name": "Frosted glass",
+      "description": "Frosted glass for creative worlds.",
+      "category": "block",
+      "color": "d7f5f4",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.4,
+      "drop": "frost_glass",
+      "texture": "glass"
+    },
+    {
+      "id": "ivory_tile",
+      "name": "Ivory ceramic tile",
+      "description": "Ivory ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "e9e0cc",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "ivory_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "slate_tile",
+      "name": "Slate ceramic tile",
+      "description": "Slate ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "728ba1",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "slate_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "rose_tile",
+      "name": "Rose ceramic tile",
+      "description": "Rose ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "e1b2b1",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "rose_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "ocean_tile",
+      "name": "Ocean ceramic tile",
+      "description": "Ocean ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "87bfd2",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "ocean_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "sage_tile",
+      "name": "Sage ceramic tile",
+      "description": "Sage ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "aac793",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "sage_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "amber_tile",
+      "name": "Amber ceramic tile",
+      "description": "Amber ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "e9c385",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "amber_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "violet_tile",
+      "name": "Violet ceramic tile",
+      "description": "Violet ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "bda2d6",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "violet_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "sunset_tile",
+      "name": "Sunset ceramic tile",
+      "description": "Sunset ceramic tile for creative worlds.",
+      "category": "block",
+      "color": "e6a082",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.8,
+      "drop": "sunset_tile",
+      "texture": "tile"
+    },
+    {
+      "id": "iron_plate",
+      "name": "Riveted iron",
+      "description": "Riveted iron for creative worlds.",
+      "category": "block",
+      "color": "bcc7d0",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "iron_plate",
+      "texture": "metal",
+      "level": 1
+    },
+    {
+      "id": "copper_plate",
+      "name": "Copper cladding",
+      "description": "Copper cladding for creative worlds.",
+      "category": "block",
+      "color": "d7a27c",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "copper_plate",
+      "texture": "metal",
+      "level": 1
+    },
+    {
+      "id": "iron_grate",
+      "name": "Iron grate",
+      "description": "Iron grate for creative worlds.",
+      "category": "block",
+      "color": "9eb2bb",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "iron_grate",
+      "texture": "grate",
+      "level": 1
+    },
+    {
+      "id": "copper_grate",
+      "name": "Copper grate",
+      "description": "Copper grate for creative worlds.",
+      "category": "block",
+      "color": "d8a685",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "copper_grate",
+      "texture": "grate",
+      "level": 1
+    },
+    {
+      "id": "metal_beam",
+      "name": "Steel girder",
+      "description": "Steel girder for creative worlds.",
+      "category": "block",
+      "color": "adbac6",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "metal_beam",
+      "texture": "beam",
+      "level": 1
+    },
+    {
+      "id": "polished_stone",
+      "name": "Polished stone",
+      "description": "Polished stone for creative worlds.",
+      "category": "block",
+      "color": "b6c5c2",
+      "stack": 99,
+      "solid": true,
+      "hardness": 1.1,
+      "drop": "polished_stone",
+      "texture": "tile",
+      "level": 1
+    },
+    {
+      "id": "cedar_fence",
+      "name": "Cedar fence",
+      "description": "Cedar fence for creative worlds.",
+      "category": "block",
+      "color": "d2aa7a",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "cedar_fence",
+      "texture": "fence"
+    },
+    {
+      "id": "white_fence",
+      "name": "Garden fence",
+      "description": "Garden fence for creative worlds.",
+      "category": "block",
+      "color": "eedfc2",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "white_fence",
+      "texture": "fence"
+    },
+    {
+      "id": "iron_fence",
+      "name": "Iron fence",
+      "description": "Iron fence for creative worlds.",
+      "category": "block",
+      "color": "9eb3c4",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "iron_fence",
+      "texture": "fence"
+    },
+    {
+      "id": "rope_bridge",
+      "name": "Rope railing",
+      "description": "Rope railing for creative worlds.",
+      "category": "block",
+      "color": "d7b88a",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "rope_bridge",
+      "texture": "railing"
+    },
+    {
+      "id": "ladder",
+      "name": "Timber ladder",
+      "description": "A decorative timber ladder for cottage walls.",
+      "category": "block",
+      "color": "cbaa78",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "ladder",
+      "texture": "ladder"
+    },
+    {
+      "id": "wood_door",
+      "name": "Cottage doorway",
+      "description": "An open timber doorway you can walk through.",
+      "category": "block",
+      "color": "c59c72",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "wood_door",
+      "texture": "door"
+    },
+    {
+      "id": "arched_window",
+      "name": "Arched window",
+      "description": "Arched window for creative worlds.",
+      "category": "block",
+      "color": "aedee1",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "arched_window",
+      "texture": "window"
+    },
+    {
+      "id": "stone_column",
+      "name": "Stone column",
+      "description": "Stone column for creative worlds.",
+      "category": "block",
+      "color": "d0d2c8",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "stone_column",
+      "texture": "column"
+    },
+    {
+      "id": "copper_column",
+      "name": "Copper column",
+      "description": "Copper column for creative worlds.",
+      "category": "block",
+      "color": "d8a283",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "copper_column",
+      "texture": "column"
+    },
+    {
+      "id": "garden_arch",
+      "name": "Garden arch",
+      "description": "Garden arch for creative worlds.",
+      "category": "block",
+      "color": "8eb57b",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "garden_arch",
+      "texture": "arch"
+    },
+    {
+      "id": "rose_planter",
+      "name": "Rose planter",
+      "description": "Rose planter for creative worlds.",
+      "category": "block",
+      "color": "eaa2b6",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "rose_planter",
+      "texture": "flower"
+    },
+    {
+      "id": "lavender_planter",
+      "name": "Lavender planter",
+      "description": "Lavender planter for creative worlds.",
+      "category": "block",
+      "color": "b8a0df",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "lavender_planter",
+      "texture": "flower"
+    },
+    {
+      "id": "fern",
+      "name": "Potted fern",
+      "description": "Potted fern for creative worlds.",
+      "category": "block",
+      "color": "7cbb83",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "fern",
+      "texture": "fern"
+    },
+    {
+      "id": "cactus_pot",
+      "name": "Potted cactus",
+      "description": "Potted cactus for creative worlds.",
+      "category": "block",
+      "color": "9fbb76",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "cactus_pot",
+      "texture": "cactus"
+    },
+    {
+      "id": "stool",
+      "name": "Workshop stool",
+      "description": "Workshop stool for creative worlds.",
+      "category": "block",
+      "color": "cdb28c",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "stool",
+      "texture": "stool"
+    },
+    {
+      "id": "sofa",
+      "name": "Orchid sofa",
+      "description": "Orchid sofa for creative worlds.",
+      "category": "block",
+      "color": "bb9ecb",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "sofa",
+      "texture": "sofa"
+    },
+    {
+      "id": "bed",
+      "name": "Explorer bed",
+      "description": "A cozy decorative bed for your explorer cottage.",
+      "category": "block",
+      "color": "93c2d5",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "bed",
+      "texture": "bed"
+    },
+    {
+      "id": "cabinet",
+      "name": "Cottage cabinet",
+      "description": "Cottage cabinet for creative worlds.",
+      "category": "block",
+      "color": "bb956a",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "cabinet",
+      "texture": "cabinet"
+    },
+    {
+      "id": "barrel",
+      "name": "Cedar barrel",
+      "description": "Cedar barrel for creative worlds.",
+      "category": "block",
+      "color": "c8a174",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "barrel",
+      "texture": "barrel"
+    },
+    {
+      "id": "wall_clock",
+      "name": "Sunrise clock",
+      "description": "Sunrise clock for creative worlds.",
+      "category": "block",
+      "color": "ddb679",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "wall_clock",
+      "texture": "clock"
+    },
+    {
+      "id": "painting",
+      "name": "Mountain painting",
+      "description": "Mountain painting for creative worlds.",
+      "category": "block",
+      "color": "96c1d3",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "painting",
+      "texture": "painting"
+    },
+    {
+      "id": "notice_board",
+      "name": "Town notice board",
+      "description": "A decorative village notice board with pinned papers.",
+      "category": "block",
+      "color": "d0ad7d",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "notice_board",
+      "texture": "notice"
+    },
+    {
+      "id": "signpost",
+      "name": "Trail sign",
+      "description": "Trail sign for creative worlds.",
+      "category": "block",
+      "color": "d5b783",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "signpost",
+      "texture": "sign"
+    },
+    {
+      "id": "mailbox",
+      "name": "Copper mailbox",
+      "description": "A copper mailbox to decorate your garden entrance.",
+      "category": "block",
+      "color": "dca481",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "mailbox",
+      "texture": "mailbox"
+    },
+    {
+      "id": "birdhouse",
+      "name": "Cedar birdhouse",
+      "description": "Cedar birdhouse for creative worlds.",
+      "category": "block",
+      "color": "d1b078",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "birdhouse",
+      "texture": "birdhouse"
+    },
+    {
+      "id": "banner_sun",
+      "name": "Sunrise banner",
+      "description": "Sunrise banner for creative worlds.",
+      "category": "block",
+      "color": "f2c27b",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "banner_sun",
+      "texture": "banner"
+    },
+    {
+      "id": "banner_moon",
+      "name": "Moonberry banner",
+      "description": "Moonberry banner for creative worlds.",
+      "category": "block",
+      "color": "bba2e4",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "banner_moon",
+      "texture": "banner"
+    },
+    {
+      "id": "banner_leaf",
+      "name": "Verdant banner",
+      "description": "Verdant banner for creative worlds.",
+      "category": "block",
+      "color": "9acb98",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "banner_leaf",
+      "texture": "banner"
+    },
+    {
+      "id": "blue_rug",
+      "name": "Lagoon rug",
+      "description": "Lagoon rug for creative worlds.",
+      "category": "block",
+      "color": "82bacd",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "blue_rug",
+      "texture": "rug"
+    },
+    {
+      "id": "rose_rug",
+      "name": "Rose rug",
+      "description": "Rose rug for creative worlds.",
+      "category": "block",
+      "color": "d8a0b0",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "rose_rug",
+      "texture": "rug"
+    },
+    {
+      "id": "candle",
+      "name": "Beeswax candle",
+      "description": "Beeswax candle for creative worlds.",
+      "category": "block",
+      "color": "ffd188",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "candle",
+      "texture": "candle",
+      "light": true,
+      "light_radius": 3.5
+    },
+    {
+      "id": "campfire",
+      "name": "Campfire",
+      "description": "Campfire for creative worlds.",
+      "category": "block",
+      "color": "f5b378",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "campfire",
+      "texture": "campfire",
+      "light": true,
+      "light_radius": 3.5
+    },
+    {
+      "id": "street_lamp",
+      "name": "Copper streetlamp",
+      "description": "Copper streetlamp for creative worlds.",
+      "category": "block",
+      "color": "eac08d",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "street_lamp",
+      "texture": "street_lamp",
+      "light": true,
+      "light_radius": 5
+    },
+    {
+      "id": "crystal_lantern",
+      "name": "Amethyst lantern",
+      "description": "Amethyst lantern for creative worlds.",
+      "category": "block",
+      "color": "cfa4f4",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "crystal_lantern",
+      "texture": "lantern",
+      "light": true,
+      "light_radius": 3.5
+    },
+    {
+      "id": "mushroom_lamp",
+      "name": "Glowcap lamp",
+      "description": "Glowcap lamp for creative worlds.",
+      "category": "block",
+      "color": "d5c788",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "mushroom_lamp",
+      "texture": "mushroom",
+      "light": true,
+      "light_radius": 3.5
+    },
+    {
+      "id": "fountain",
+      "name": "Garden fountain",
+      "description": "Garden fountain for creative worlds.",
+      "category": "block",
+      "color": "9dc7dc",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "fountain",
+      "texture": "fountain"
+    },
+    {
+      "id": "aquarium",
+      "name": "Silverfin aquarium",
+      "description": "Silverfin aquarium for creative worlds.",
+      "category": "block",
+      "color": "93dbe5",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "aquarium",
+      "texture": "aquarium"
+    },
+    {
+      "id": "portal",
+      "name": "Wayfarer portal",
+      "description": "Interact to configure a world destination and travel with friends.",
+      "category": "block",
+      "color": "b49be9",
+      "stack": 20,
+      "solid": false,
+      "hardness": 1.2,
+      "drop": "portal",
+      "texture": "portal",
+      "light": true,
+      "light_radius": 4
+    },
+    {
+      "id": "spring",
+      "name": "Copper springboard",
+      "description": "Land on this bouncy springboard to jump higher.",
+      "category": "block",
+      "color": "e2b278",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.6,
+      "drop": "spring",
+      "texture": "spring"
+    },
+    {
+      "id": "straw_hat",
+      "name": "Sungrain hat",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "e7c67e",
+      "stack": 1,
+      "texture": "hat",
+      "slot": "hat"
+    },
+    {
+      "id": "explorer_hat",
+      "name": "Wayfarer cap",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "88bfa5",
+      "stack": 1,
+      "texture": "cap",
+      "slot": "hat"
+    },
+    {
+      "id": "miner_helmet",
+      "name": "Miner helmet",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "efc872",
+      "stack": 1,
+      "texture": "helmet",
+      "slot": "hat"
+    },
+    {
+      "id": "backpack",
+      "name": "Explorer pack",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "c9a479",
+      "stack": 1,
+      "texture": "backpack",
+      "slot": "back"
+    },
+    {
+      "id": "cape",
+      "name": "Moonberry cape",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "b695d5",
+      "stack": 1,
+      "texture": "cape",
+      "slot": "back"
+    },
+    {
+      "id": "wings",
+      "name": "Lumen wings",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "a2e3e0",
+      "stack": 1,
+      "texture": "wings",
+      "slot": "back"
+    },
+    {
+      "id": "sage_outfit",
+      "name": "Verdant explorer coat",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "88bf94",
+      "stack": 1,
+      "texture": "outfit",
+      "slot": "outfit"
+    },
+    {
+      "id": "ocean_outfit",
+      "name": "Coastal explorer coat",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "83baca",
+      "stack": 1,
+      "texture": "outfit",
+      "slot": "outfit"
+    },
+    {
+      "id": "sunset_outfit",
+      "name": "Sunset explorer coat",
+      "description": "Equip this cosmetic in your wardrobe. Purely personal style.",
+      "category": "apparel",
+      "color": "dfa191",
+      "stack": 1,
+      "texture": "outfit",
+      "slot": "outfit"
+    },
+    {
+      "id": "pearl",
+      "name": "River pearl",
+      "description": "A rare find while fishing. Craft luminous pearl decorations.",
+      "category": "material",
+      "texture": "pearl",
+      "color": "e8f5ef",
+      "stack": 99,
+      "rarity": "rare"
+    },
+    {
+      "id": "pearl_mosaic",
+      "name": "Pearl mosaic",
+      "description": "Iridescent river pearls set into pale masonry.",
+      "category": "block",
+      "texture": "mosaic",
+      "color": "d8e8dc",
+      "stack": 99,
+      "solid": true,
+      "hardness": 0.9,
+      "drop": "pearl_mosaic"
+    },
+    {
+      "id": "pearl_lamp",
+      "name": "River pearl lamp",
+      "description": "A luminous pearl in an elegant copper cradle.",
+      "category": "block",
+      "texture": "pearl_lamp",
+      "color": "e4f6df",
+      "stack": 99,
+      "solid": false,
+      "hardness": 0.4,
+      "drop": "pearl_lamp",
+      "light": true,
+      "light_radius": 5
+    }
   ],
   "recipes": [
-    {"id":"planks","output":"planks","amount":4,"ingredients":{"wood":1}},
-    {"id":"wood_pick","output":"wood_pick","amount":1,"ingredients":{"wood":4,"fiber":2}},
-    {"id":"bench","output":"bench","amount":1,"ingredients":{"wood":6}},
-    {"id":"stone_pick","output":"stone_pick","amount":1,"ingredients":{"stone":8,"wood":3},"station":"bench"},
-    {"id":"brick","output":"brick","amount":4,"ingredients":{"stone":4},"station":"bench"},
-    {"id":"chest","output":"chest","amount":1,"ingredients":{"wood":8},"station":"bench"},
-    {"id":"furnace","output":"furnace","amount":1,"ingredients":{"stone":12},"station":"bench"},
-    {"id":"iron","output":"iron","amount":1,"ingredients":{"iron_ore":2,"coal":1},"station":"furnace"},
-    {"id":"iron_pick","output":"iron_pick","amount":1,"ingredients":{"iron":5,"wood":3},"station":"bench"},
-    {"id":"glass","output":"glass","amount":2,"ingredients":{"sand":2,"coal":1},"station":"furnace"},
-    {"id":"torch","output":"torch","amount":4,"ingredients":{"wood":1,"coal":1}},
-    {"id":"platform","output":"platform","amount":4,"ingredients":{"wood":2}},
-    {"id":"core","output":"core","amount":1,"ingredients":{"crystal":3,"iron":4},"station":"bench"},
-    {"id":"moss_brick","output":"moss_brick","amount":4,"ingredients":{"stone":4,"fiber":1},"station":"bench"},
-    {"id":"slate_brick","output":"slate_brick","amount":4,"ingredients":{"stone":4,"coal":1},"station":"bench"},
-    {"id":"sandstone_brick","output":"sandstone_brick","amount":4,"ingredients":{"sand":3,"stone":1},"station":"bench"},
-    {"id":"marble","output":"marble","amount":4,"ingredients":{"stone":3,"snow":1},"station":"bench"},
-    {"id":"terracotta","output":"terracotta","amount":4,"ingredients":{"dirt":3,"sand":1,"coal":1},"station":"furnace"},
-    {"id":"red_planks","output":"red_planks","amount":4,"ingredients":{"planks":4,"grain":1},"station":"bench"},
-    {"id":"blue_planks","output":"blue_planks","amount":4,"ingredients":{"planks":4,"sand":1},"station":"bench"},
-    {"id":"green_planks","output":"green_planks","amount":4,"ingredients":{"planks":4,"fiber":1},"station":"bench"},
-    {"id":"timber_beam","output":"timber_beam","amount":4,"ingredients":{"wood":3,"iron":1},"station":"bench"},
-    {"id":"hedge","output":"hedge","amount":2,"ingredients":{"fiber":3,"wood":1}},
-    {"id":"flower_pot","output":"flower_pot","amount":1,"ingredients":{"dirt":2,"fiber":2,"grain":1},"station":"bench"},
-    {"id":"chair","output":"chair","amount":1,"ingredients":{"planks":3,"wood":1},"station":"bench"},
-    {"id":"table","output":"table","amount":1,"ingredients":{"planks":4,"wood":2},"station":"bench"},
-    {"id":"bookshelf","output":"bookshelf","amount":1,"ingredients":{"planks":5,"fiber":3},"station":"bench"},
-    {"id":"tapestry","output":"tapestry","amount":1,"ingredients":{"fiber":5,"grain":2},"station":"bench"},
-    {"id":"rug","output":"rug","amount":2,"ingredients":{"fiber":4,"grain":1}},
-    {"id":"iron_lantern","output":"iron_lantern","amount":2,"ingredients":{"torch":2,"iron":1},"station":"bench"},
-    {"id":"lumen_lamp","output":"lumen_lamp","amount":2,"ingredients":{"crystal":1,"glass":2,"iron":1},"station":"bench"},
-    {"id":"reinforced_glass","output":"reinforced_glass","amount":4,"ingredients":{"glass":4,"iron":1},"station":"bench"},
-    {"id":"crystal_pick","output":"crystal_pick","amount":1,"ingredients":{"crystal":4,"iron":6,"wood":3},"station":"bench"}
-  ]
+    {
+      "id": "planks",
+      "output": "planks",
+      "amount": 4,
+      "ingredients": {
+        "wood": 1
+      }
+    },
+    {
+      "id": "wood_pick",
+      "output": "wood_pick",
+      "amount": 1,
+      "ingredients": {
+        "wood": 4,
+        "fiber": 2
+      }
+    },
+    {
+      "id": "bench",
+      "output": "bench",
+      "amount": 1,
+      "ingredients": {
+        "wood": 6
+      }
+    },
+    {
+      "id": "stone_pick",
+      "output": "stone_pick",
+      "amount": 1,
+      "ingredients": {
+        "stone": 8,
+        "wood": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "brick",
+      "output": "brick",
+      "amount": 4,
+      "ingredients": {
+        "stone": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "chest",
+      "output": "chest",
+      "amount": 1,
+      "ingredients": {
+        "wood": 8
+      },
+      "station": "bench"
+    },
+    {
+      "id": "furnace",
+      "output": "furnace",
+      "amount": 1,
+      "ingredients": {
+        "stone": 12
+      },
+      "station": "bench"
+    },
+    {
+      "id": "iron",
+      "output": "iron",
+      "amount": 1,
+      "ingredients": {
+        "iron_ore": 2,
+        "coal": 1
+      },
+      "station": "furnace"
+    },
+    {
+      "id": "iron_pick",
+      "output": "iron_pick",
+      "amount": 1,
+      "ingredients": {
+        "iron": 5,
+        "wood": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "glass",
+      "output": "glass",
+      "amount": 2,
+      "ingredients": {
+        "sand": 2,
+        "coal": 1
+      },
+      "station": "furnace"
+    },
+    {
+      "id": "torch",
+      "output": "torch",
+      "amount": 4,
+      "ingredients": {
+        "wood": 1,
+        "coal": 1
+      }
+    },
+    {
+      "id": "platform",
+      "output": "platform",
+      "amount": 4,
+      "ingredients": {
+        "wood": 2
+      }
+    },
+    {
+      "id": "core",
+      "output": "core",
+      "amount": 1,
+      "ingredients": {
+        "crystal": 3,
+        "iron": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "moss_brick",
+      "output": "moss_brick",
+      "amount": 4,
+      "ingredients": {
+        "stone": 4,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "slate_brick",
+      "output": "slate_brick",
+      "amount": 4,
+      "ingredients": {
+        "stone": 4,
+        "coal": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "sandstone_brick",
+      "output": "sandstone_brick",
+      "amount": 4,
+      "ingredients": {
+        "sand": 3,
+        "stone": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "marble",
+      "output": "marble",
+      "amount": 4,
+      "ingredients": {
+        "stone": 3,
+        "snow": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "terracotta",
+      "output": "terracotta",
+      "amount": 4,
+      "ingredients": {
+        "dirt": 3,
+        "sand": 1,
+        "coal": 1
+      },
+      "station": "furnace"
+    },
+    {
+      "id": "red_planks",
+      "output": "red_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "grain": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "blue_planks",
+      "output": "blue_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "sand": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "green_planks",
+      "output": "green_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "timber_beam",
+      "output": "timber_beam",
+      "amount": 4,
+      "ingredients": {
+        "wood": 3,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "hedge",
+      "output": "hedge",
+      "amount": 2,
+      "ingredients": {
+        "fiber": 3,
+        "wood": 1
+      }
+    },
+    {
+      "id": "flower_pot",
+      "output": "flower_pot",
+      "amount": 1,
+      "ingredients": {
+        "dirt": 2,
+        "fiber": 2,
+        "grain": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "chair",
+      "output": "chair",
+      "amount": 1,
+      "ingredients": {
+        "planks": 3,
+        "wood": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "table",
+      "output": "table",
+      "amount": 1,
+      "ingredients": {
+        "planks": 4,
+        "wood": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "bookshelf",
+      "output": "bookshelf",
+      "amount": 1,
+      "ingredients": {
+        "planks": 5,
+        "fiber": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "tapestry",
+      "output": "tapestry",
+      "amount": 1,
+      "ingredients": {
+        "fiber": 5,
+        "grain": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "rug",
+      "output": "rug",
+      "amount": 2,
+      "ingredients": {
+        "fiber": 4,
+        "grain": 1
+      }
+    },
+    {
+      "id": "iron_lantern",
+      "output": "iron_lantern",
+      "amount": 2,
+      "ingredients": {
+        "torch": 2,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "lumen_lamp",
+      "output": "lumen_lamp",
+      "amount": 2,
+      "ingredients": {
+        "crystal": 1,
+        "glass": 2,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "reinforced_glass",
+      "output": "reinforced_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "crystal_pick",
+      "output": "crystal_pick",
+      "amount": 1,
+      "ingredients": {
+        "crystal": 4,
+        "iron": 6,
+        "wood": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "copper",
+      "output": "copper",
+      "amount": 1,
+      "ingredients": {
+        "copper_ore": 2,
+        "coal": 1
+      },
+      "station": "furnace",
+      "duration": 8
+    },
+    {
+      "id": "cloth",
+      "output": "cloth",
+      "amount": 1,
+      "ingredients": {
+        "fiber": 4
+      },
+      "station": "loom",
+      "duration": 6
+    },
+    {
+      "id": "rope",
+      "output": "rope",
+      "amount": 2,
+      "ingredients": {
+        "fiber": 3
+      }
+    },
+    {
+      "id": "paper",
+      "output": "paper",
+      "amount": 3,
+      "ingredients": {
+        "fiber": 2,
+        "wood": 1
+      },
+      "station": "loom",
+      "duration": 5
+    },
+    {
+      "id": "bottle",
+      "output": "bottle",
+      "amount": 2,
+      "ingredients": {
+        "glass": 2
+      },
+      "station": "furnace",
+      "duration": 5
+    },
+    {
+      "id": "water",
+      "output": "water",
+      "amount": 4,
+      "ingredients": {
+        "bottle": 1,
+        "snow": 2
+      }
+    },
+    {
+      "id": "ice",
+      "output": "ice",
+      "amount": 4,
+      "ingredients": {
+        "glass": 1,
+        "snow": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "carrot_seed",
+      "output": "carrot_seed",
+      "amount": 3,
+      "ingredients": {
+        "seed": 2,
+        "fiber": 1
+      }
+    },
+    {
+      "id": "tomato_seed",
+      "output": "tomato_seed",
+      "amount": 3,
+      "ingredients": {
+        "seed": 2,
+        "fiber": 1
+      }
+    },
+    {
+      "id": "berry_seed",
+      "output": "berry_seed",
+      "amount": 3,
+      "ingredients": {
+        "seed": 2,
+        "fiber": 1
+      }
+    },
+    {
+      "id": "bread",
+      "output": "bread",
+      "amount": 1,
+      "ingredients": {
+        "grain": 3
+      },
+      "station": "cooking_pot",
+      "duration": 6
+    },
+    {
+      "id": "baked_trout",
+      "output": "baked_trout",
+      "amount": 1,
+      "ingredients": {
+        "trout": 1,
+        "fiber": 1
+      },
+      "station": "cooking_pot",
+      "duration": 8
+    },
+    {
+      "id": "berry_pie",
+      "output": "berry_pie",
+      "amount": 1,
+      "ingredients": {
+        "grain": 3,
+        "berry": 3
+      },
+      "station": "cooking_pot",
+      "duration": 10
+    },
+    {
+      "id": "vegetable_stew",
+      "output": "vegetable_stew",
+      "amount": 1,
+      "ingredients": {
+        "carrot": 2,
+        "tomato": 2
+      },
+      "station": "cooking_pot",
+      "duration": 10
+    },
+    {
+      "id": "honey_bread",
+      "output": "honey_bread",
+      "amount": 1,
+      "ingredients": {
+        "bread": 1,
+        "amber": 1
+      },
+      "station": "cooking_pot",
+      "duration": 10
+    },
+    {
+      "id": "kiln",
+      "output": "kiln",
+      "amount": 1,
+      "ingredients": {
+        "stone": 8,
+        "clay": 6
+      },
+      "station": "bench"
+    },
+    {
+      "id": "loom",
+      "output": "loom",
+      "amount": 1,
+      "ingredients": {
+        "wood": 8,
+        "fiber": 6
+      },
+      "station": "bench"
+    },
+    {
+      "id": "cooking_pot",
+      "output": "cooking_pot",
+      "amount": 1,
+      "ingredients": {
+        "stone": 6,
+        "iron": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "crystal_press",
+      "output": "crystal_press",
+      "amount": 1,
+      "ingredients": {
+        "iron": 6,
+        "crystal": 3,
+        "glass": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "fishing_rod",
+      "output": "fishing_rod",
+      "amount": 1,
+      "ingredients": {
+        "wood": 4,
+        "rope": 2,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "copper_pick",
+      "output": "copper_pick",
+      "amount": 1,
+      "ingredients": {
+        "copper": 5,
+        "wood": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "amethyst_pick",
+      "output": "amethyst_pick",
+      "amount": 1,
+      "ingredients": {
+        "amethyst": 4,
+        "iron": 8,
+        "crystal": 3
+      },
+      "station": "crystal_press"
+    },
+    {
+      "id": "clay_brick",
+      "output": "clay_brick",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "coal": 1
+      },
+      "station": "kiln",
+      "duration": 8
+    },
+    {
+      "id": "white_brick",
+      "output": "white_brick",
+      "amount": 4,
+      "ingredients": {
+        "limestone": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "basalt_brick",
+      "output": "basalt_brick",
+      "amount": 4,
+      "ingredients": {
+        "basalt": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "granite_brick",
+      "output": "granite_brick",
+      "amount": 4,
+      "ingredients": {
+        "granite": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "copper_brick",
+      "output": "copper_brick",
+      "amount": 4,
+      "ingredients": {
+        "copper": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "amber_brick",
+      "output": "amber_brick",
+      "amount": 4,
+      "ingredients": {
+        "amber": 1,
+        "stone": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "crystal_brick",
+      "output": "crystal_brick",
+      "amount": 4,
+      "ingredients": {
+        "crystal": 1,
+        "stone": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "violet_brick",
+      "output": "violet_brick",
+      "amount": 4,
+      "ingredients": {
+        "amethyst": 1,
+        "stone": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "weathered_brick",
+      "output": "weathered_brick",
+      "amount": 4,
+      "ingredients": {
+        "brick": 3,
+        "dirt": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "cobblestone",
+      "output": "cobblestone",
+      "amount": 4,
+      "ingredients": {
+        "stone": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "river_pebbles",
+      "output": "river_pebbles",
+      "amount": 4,
+      "ingredients": {
+        "stone": 3,
+        "sand": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "mosaic",
+      "output": "mosaic",
+      "amount": 4,
+      "ingredients": {
+        "terracotta": 2,
+        "glass": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "gold_planks",
+      "output": "gold_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "grain": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "white_planks",
+      "output": "white_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "snow": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "violet_planks",
+      "output": "violet_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "berry": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "pink_planks",
+      "output": "pink_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "tomato": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "teal_planks",
+      "output": "teal_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "dark_planks",
+      "output": "dark_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "coal": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "orange_planks",
+      "output": "orange_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "carrot": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "mint_planks",
+      "output": "mint_planks",
+      "amount": 4,
+      "ingredients": {
+        "planks": 4,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "rose_glass",
+      "output": "rose_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "tomato": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "amber_glass",
+      "output": "amber_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "grain": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "mint_glass",
+      "output": "mint_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "azure_glass",
+      "output": "azure_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "sand": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "violet_glass",
+      "output": "violet_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "berry": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "smoke_glass",
+      "output": "smoke_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "coal": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "teal_glass",
+      "output": "teal_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "frost_glass",
+      "output": "frost_glass",
+      "amount": 4,
+      "ingredients": {
+        "glass": 4,
+        "snow": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "ivory_tile",
+      "output": "ivory_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "limestone": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "slate_tile",
+      "output": "slate_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "basalt": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "rose_tile",
+      "output": "rose_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "tomato": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "ocean_tile",
+      "output": "ocean_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "sand": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "sage_tile",
+      "output": "sage_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "fiber": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "amber_tile",
+      "output": "amber_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "grain": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "violet_tile",
+      "output": "violet_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "berry": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "sunset_tile",
+      "output": "sunset_tile",
+      "amount": 4,
+      "ingredients": {
+        "clay": 3,
+        "carrot": 1
+      },
+      "station": "kiln",
+      "duration": 5
+    },
+    {
+      "id": "iron_plate",
+      "output": "iron_plate",
+      "amount": 4,
+      "ingredients": {
+        "iron": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "copper_plate",
+      "output": "copper_plate",
+      "amount": 4,
+      "ingredients": {
+        "copper": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "iron_grate",
+      "output": "iron_grate",
+      "amount": 4,
+      "ingredients": {
+        "iron": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "copper_grate",
+      "output": "copper_grate",
+      "amount": 4,
+      "ingredients": {
+        "copper": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "metal_beam",
+      "output": "metal_beam",
+      "amount": 4,
+      "ingredients": {
+        "iron": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "polished_stone",
+      "output": "polished_stone",
+      "amount": 4,
+      "ingredients": {
+        "stone": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "cedar_fence",
+      "output": "cedar_fence",
+      "amount": 4,
+      "ingredients": {
+        "wood": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "white_fence",
+      "output": "white_fence",
+      "amount": 4,
+      "ingredients": {
+        "planks": 2,
+        "snow": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "iron_fence",
+      "output": "iron_fence",
+      "amount": 4,
+      "ingredients": {
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "rope_bridge",
+      "output": "rope_bridge",
+      "amount": 4,
+      "ingredients": {
+        "rope": 2,
+        "wood": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "ladder",
+      "output": "ladder",
+      "amount": 4,
+      "ingredients": {
+        "wood": 2,
+        "rope": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "wood_door",
+      "output": "wood_door",
+      "amount": 1,
+      "ingredients": {
+        "planks": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "arched_window",
+      "output": "arched_window",
+      "amount": 2,
+      "ingredients": {
+        "glass": 2,
+        "wood": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "stone_column",
+      "output": "stone_column",
+      "amount": 3,
+      "ingredients": {
+        "stone": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "copper_column",
+      "output": "copper_column",
+      "amount": 3,
+      "ingredients": {
+        "copper": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "garden_arch",
+      "output": "garden_arch",
+      "amount": 1,
+      "ingredients": {
+        "wood": 4,
+        "fiber": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "rose_planter",
+      "output": "rose_planter",
+      "amount": 2,
+      "ingredients": {
+        "clay": 1,
+        "tomato": 1,
+        "fiber": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "lavender_planter",
+      "output": "lavender_planter",
+      "amount": 2,
+      "ingredients": {
+        "clay": 1,
+        "berry": 1,
+        "fiber": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "fern",
+      "output": "fern",
+      "amount": 2,
+      "ingredients": {
+        "clay": 1,
+        "fiber": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "cactus_pot",
+      "output": "cactus_pot",
+      "amount": 2,
+      "ingredients": {
+        "clay": 1,
+        "sand": 2,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "stool",
+      "output": "stool",
+      "amount": 1,
+      "ingredients": {
+        "wood": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "sofa",
+      "output": "sofa",
+      "amount": 1,
+      "ingredients": {
+        "wood": 3,
+        "cloth": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "bed",
+      "output": "bed",
+      "amount": 1,
+      "ingredients": {
+        "wood": 5,
+        "cloth": 4
+      },
+      "station": "bench"
+    },
+    {
+      "id": "cabinet",
+      "output": "cabinet",
+      "amount": 1,
+      "ingredients": {
+        "wood": 6,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "barrel",
+      "output": "barrel",
+      "amount": 1,
+      "ingredients": {
+        "wood": 4,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "wall_clock",
+      "output": "wall_clock",
+      "amount": 1,
+      "ingredients": {
+        "wood": 3,
+        "copper": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "painting",
+      "output": "painting",
+      "amount": 1,
+      "ingredients": {
+        "wood": 2,
+        "paper": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "notice_board",
+      "output": "notice_board",
+      "amount": 1,
+      "ingredients": {
+        "wood": 4,
+        "paper": 2
+      },
+      "station": "bench"
+    },
+    {
+      "id": "signpost",
+      "output": "signpost",
+      "amount": 2,
+      "ingredients": {
+        "wood": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "mailbox",
+      "output": "mailbox",
+      "amount": 1,
+      "ingredients": {
+        "wood": 2,
+        "copper": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "birdhouse",
+      "output": "birdhouse",
+      "amount": 1,
+      "ingredients": {
+        "wood": 3,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "banner_sun",
+      "output": "banner_sun",
+      "amount": 2,
+      "ingredients": {
+        "cloth": 2,
+        "grain": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "banner_moon",
+      "output": "banner_moon",
+      "amount": 2,
+      "ingredients": {
+        "cloth": 2,
+        "berry": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "banner_leaf",
+      "output": "banner_leaf",
+      "amount": 2,
+      "ingredients": {
+        "cloth": 2,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "blue_rug",
+      "output": "blue_rug",
+      "amount": 2,
+      "ingredients": {
+        "cloth": 2,
+        "sand": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "rose_rug",
+      "output": "rose_rug",
+      "amount": 2,
+      "ingredients": {
+        "cloth": 2,
+        "tomato": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "candle",
+      "output": "candle",
+      "amount": 4,
+      "ingredients": {
+        "fiber": 1,
+        "amber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "campfire",
+      "output": "campfire",
+      "amount": 1,
+      "ingredients": {
+        "wood": 3,
+        "coal": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "street_lamp",
+      "output": "street_lamp",
+      "amount": 1,
+      "ingredients": {
+        "copper": 2,
+        "torch": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "crystal_lantern",
+      "output": "crystal_lantern",
+      "amount": 2,
+      "ingredients": {
+        "amethyst": 1,
+        "glass": 2,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "mushroom_lamp",
+      "output": "mushroom_lamp",
+      "amount": 2,
+      "ingredients": {
+        "fiber": 3,
+        "crystal": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "fountain",
+      "output": "fountain",
+      "amount": 1,
+      "ingredients": {
+        "stone": 8,
+        "glass": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "aquarium",
+      "output": "aquarium",
+      "amount": 1,
+      "ingredients": {
+        "glass": 4,
+        "trout": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "portal",
+      "output": "portal",
+      "amount": 1,
+      "ingredients": {
+        "crystal": 4,
+        "iron": 6,
+        "amethyst": 2
+      },
+      "station": "crystal_press",
+      "duration": 12
+    },
+    {
+      "id": "spring",
+      "output": "spring",
+      "amount": 2,
+      "ingredients": {
+        "copper": 3,
+        "iron": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "straw_hat",
+      "output": "straw_hat",
+      "amount": 1,
+      "ingredients": {
+        "grain": 3,
+        "fiber": 4
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "explorer_hat",
+      "output": "explorer_hat",
+      "amount": 1,
+      "ingredients": {
+        "cloth": 2,
+        "fiber": 1
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "miner_helmet",
+      "output": "miner_helmet",
+      "amount": 1,
+      "ingredients": {
+        "iron": 2,
+        "torch": 1
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "backpack",
+      "output": "backpack",
+      "amount": 1,
+      "ingredients": {
+        "cloth": 3,
+        "rope": 2
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "cape",
+      "output": "cape",
+      "amount": 1,
+      "ingredients": {
+        "cloth": 4,
+        "berry": 1
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "wings",
+      "output": "wings",
+      "amount": 1,
+      "ingredients": {
+        "crystal": 3,
+        "cloth": 4,
+        "iron": 2
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "sage_outfit",
+      "output": "sage_outfit",
+      "amount": 1,
+      "ingredients": {
+        "cloth": 4,
+        "fiber": 2
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "ocean_outfit",
+      "output": "ocean_outfit",
+      "amount": 1,
+      "ingredients": {
+        "cloth": 4,
+        "sand": 2
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "sunset_outfit",
+      "output": "sunset_outfit",
+      "amount": 1,
+      "ingredients": {
+        "cloth": 4,
+        "tomato": 2
+      },
+      "station": "loom",
+      "duration": 8
+    },
+    {
+      "id": "pearl_mosaic",
+      "output": "pearl_mosaic",
+      "amount": 6,
+      "ingredients": {
+        "pearl": 1,
+        "stone": 5
+      },
+      "station": "bench"
+    },
+    {
+      "id": "pearl_lamp",
+      "output": "pearl_lamp",
+      "amount": 1,
+      "ingredients": {
+        "pearl": 1,
+        "copper": 2,
+        "glass": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "grass",
+      "output": "grass",
+      "amount": 4,
+      "ingredients": {
+        "dirt": 3,
+        "fiber": 1
+      },
+      "station": "bench"
+    },
+    {
+      "id": "leaves",
+      "output": "leaves",
+      "amount": 4,
+      "ingredients": {
+        "wood": 1,
+        "fiber": 3
+      },
+      "station": "bench"
+    },
+    {
+      "id": "coal_ore",
+      "output": "coal_ore",
+      "amount": 4,
+      "ingredients": {
+        "stone": 3,
+        "coal": 1
+      },
+      "station": "bench"
+    }
+  ],
+  "content_version": 2,
+  "catalog": {
+    "collections": [
+      "Foundations",
+      "Timber",
+      "Masonry",
+      "Glass",
+      "Ceramics",
+      "Furniture",
+      "Gardens",
+      "Lighting",
+      "Farming",
+      "Cooking",
+      "Tools",
+      "Wardrobe"
+    ],
+    "note": "Stable IDs preserve older saves; all recipes and item grants use this shared registry."
+  }
 }

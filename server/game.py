@@ -1,15 +1,18 @@
 """Single-thread authority. Requests transact synchronously; no await inside mutations."""
 from copy import copy, deepcopy
+from contextlib import contextmanager, nullcontext
 import math
 import logging
 import re
 import secrets
 import time
-from .definitions import ITEMS, RECIPES, MOVE, WIDTH, HEIGHT, solid
+from .definitions import ITEMS, RECIPES, MOVE, solid
 from .inventory import Rejected, require, integer, add, remove, empty, transfer, quantity
-from .world import normalize
+from .world import normalize, World
 from .trading import Trading, TradeInvalid
 from .admin import Admin
+from .social import Social
+from .mechanics import Mechanics
 from . import physics
 
 
@@ -24,14 +27,26 @@ class Game:
         self.outbox = []
         self.trading = Trading(self)
         self.admin = Admin(self)
+        self.social = Social(self)
+        self.mechanics = Mechanics(self)
 
-    def emit(self, destination, kind, **data):
-        self.outbox.append((destination, {'type': kind, **data}))
+    def emit(self, recipient, kind, **data):
+        self.outbox.append((recipient, {'type': kind, **data}))
 
     def world(self, name):
         if name not in self.worlds:
             self.worlds[name] = self.store.load_world(name)
         return self.worlds[name]
+
+    @contextmanager
+    def transaction_events(self):
+        out_len = len(self.outbox)
+        try:
+            with nullcontext() if self.store.db.in_transaction else self.store.transaction():
+                yield
+        except BaseException:
+            del self.outbox[out_len:]
+            raise
 
     def join(self, ident):
         self.store.assert_not_banned(ident)
@@ -41,6 +56,9 @@ class Game:
         w = self.world(p['world'])
         if w.collides(p['x'], p['y']):
             p['x'], p['y'] = w.spawn()
+        self.mechanics.join(p)
+        with self.transaction_events():
+            self.mechanics.event(p, 'discover', item=p['world'])
         p['grounded'] = w.collides(p['x'], p['y']+.02)
         self.reset_movement(p)
         self.players[ident] = p
@@ -51,10 +69,14 @@ class Game:
             return
         p = self.players[ident]
         self.trading.cancel_trade(p)
-        self.store.save_player(p)
+        with self.transaction_events():
+            self.store.save_player(p)
+            self.mechanics.persist(p)
         del self.players[ident]
         self.prune_invites()
         self.emit('world:'+p['world'], 'departure', id=ident, name=p['name'])
+        self.social.presence_changed(ident)
+        self.social.broadcast_directory()
         self.unload()
 
     def unload(self):
@@ -68,8 +90,8 @@ class Game:
         self.emit(p['id'], 'inventory', slots=p['inventory'], selected=p['selected'])
 
     def target(self, p, data, permission=True):
-        x, y = integer(data.get('x'), 0, WIDTH-1), integer(data.get('y'), 0, HEIGHT-1)
         w = self.world(p['world'])
+        x, y = integer(data.get('x'), 0, w.width-1), integer(data.get('y'), 0, w.height-1)
         require(math.hypot(x+.5-p['x'], y+.5-p['y']-.7) <= MOVE['reach'], 'Move closer to that tile.')
         require(not permission or w.allowed(p['id']), 'This world is protected. Ask its owner for builder access.')
         return w, x, y
@@ -78,8 +100,8 @@ class Game:
         require(p['trade'] is None, 'Finish or cancel your trade first.')
 
     def reset_movement(self, p):
-        p.update(input={'axis': 0, 'jump': False, 'jump_held': False}, input_queue=[],
-                 input_time=0., input_sequence=0, processed_input=0, coyote=0., jump_buffer=0.,
+        p.update(input={'axis': 0, 'jump': False, 'jump_held': False, 'sprint': False}, input_queue=[],
+                 input_time=0., input_sequence=0, processed_input=0, coyote=0., jump_buffer=0., launch_timer=0.,
                  movement_epoch=secrets.token_hex(8))
         p['ack_state'] = physics.snapshot(p)
 
@@ -98,7 +120,9 @@ class Game:
             require(type(axis) is int and axis in (-1, 0, 1) and type(data.get('jump')) is bool, 'Invalid movement.')
             held = data.get('jump_held', True)
             require(type(held) is bool, 'Invalid movement.')
-            intent = {'axis': axis, 'jump': data['jump'], 'jump_held': held}
+            sprint = data.get('sprint', False)
+            require(type(sprint) is bool, 'Invalid sprint control.')
+            intent = {'axis': axis, 'jump': data['jump'], 'jump_held': held, 'sprint': sprint}
             if 'seq' in data:
                 if data.get('epoch') != p['movement_epoch']:
                     return  # In-flight input from before a world change or reconnect.
@@ -125,19 +149,42 @@ class Game:
             require(not self.store.is_muted(ident, self.clock()), 'Your chat is muted by an administrator.')
             require(self.clock()-p['last_chat'] >= .7, 'Please slow down your messages.')
             text = ''.join(c for c in text.strip() if c.isprintable())
+            require(text, 'Write a message first.')
             p['last_chat'] = self.clock()
             for other in self.players.values():
-                if other['world'] == p['world'] and ident not in other['ignore']:
+                if other['world'] == p['world'] and ident not in other['ignore'] and not self.social.blocked(ident, other['id']):
                     self.emit(other['id'], 'chat', name=p['name'], id=ident, text=text)
             return
         if kind == 'ignore':
             target = data.get('player')
-            require(isinstance(target, str), 'Invalid player.')
-            p['ignore'].symmetric_difference_update({target})
+            require(isinstance(target, str) and len(target) <= 24 and target != ident
+                    and self.store.db.execute('SELECT 1 FROM accounts WHERE id=?', (target,)).fetchone(),
+                    'Choose another known explorer.')
+            if target in p['ignore']:
+                p['ignore'].discard(target)
+            else:
+                require(len(p['ignore']) < 100, 'Your session block list is full.')
+                p['ignore'].add(target)
+                trade = self.trades.get(p.get('trade'))
+                if trade and target in trade['players']:
+                    self.trading.cancel_trade(p, 'Trade cancelled: contact was blocked.')
+                for recipient, invite in list(self.invites.items()):
+                    if (recipient == ident and invite[0] == target) or (recipient == target and invite[0] == ident):
+                        del self.invites[recipient]
             self.emit(ident, 'notice', text='Chat block updated for this session.')
             return
+        if kind == 'ping':
+            stamp = integer(data.get('sent'), 0, 2**53)
+            self.emit(ident, 'pong', sent=stamp)
+            return
         if kind == 'directory':
-            self.emit(ident, 'directory', worlds=self.store.directory())
+            self.social.directory(p, data)
+            return
+        if kind == 'social_open':
+            self.social.open(p, data)
+            return
+        if kind == 'progression':
+            self.mechanics.progression(p, data)
             return
         request = data.get('request')
         require(isinstance(request, str) and re.fullmatch(r'[A-Za-z0-9_-]{8,64}', request), 'Missing request ID.')
@@ -148,7 +195,12 @@ class Game:
                     'trade_request': self.trading.trade_request, 'trade_accept': self.trading.trade_accept,
                     'trade_offer': self.trading.trade_offer, 'trade_lock': self.trading.trade_lock,
                     'trade_confirm': self.trading.trade_confirm, 'trade_cancel': self.trading.trade_cancel,
-                    'admin_open': self.admin.open, 'admin_action': self.admin.action}
+                    'admin_open': self.admin.open, 'admin_action': self.admin.action,
+                    'social_action': self.social.action, 'machine_open': self.mechanics.machine_open,
+                    'machine_start': self.mechanics.machine_start, 'machine_collect': self.mechanics.machine_collect,
+                    'fish': self.mechanics.fish, 'use_item': self.mechanics.use_item, 'equip': self.mechanics.equip,
+                    'emote': self.mechanics.emote, 'claim_quest': self.mechanics.claim_quest,
+                    'portal_config': self.mechanics.portal_config}
         require(kind in handlers, 'Unknown action.')
         if kind in ('place', 'drop_item', 'craft', 'storage', 'move_slot'):
             require(self.clock()-p['last_action'] >= .08, 'Please slow down.')
@@ -230,16 +282,16 @@ class Game:
         require(stack is not None, 'Select a block or seed on your hotbar.')
         item = stack['id']
         definition = ITEMS[item]
-        require(definition['category'] in ('block', 'seed', 'station', 'storage', 'core'), 'This item cannot be placed.')
+        require(definition['category'] in ('block', 'seed', 'station', 'storage', 'core', 'crop'), 'This item cannot be placed.')
         tile = definition.get('place', item)
-        require(y >= 2 and y < HEIGHT-1, 'Keep the world boundary intact.')
+        require(y >= 2 and y < w.height-1, 'Keep the world boundary intact.')
         require(any(w.tile(x+dx, y+dy) for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]), 'Build beside an existing tile.')
         if solid(tile):
             for other in self.players.values():
                 if other['world'] == w.name:
                     require(not (x < other['x']+MOVE['width']/2 and x+1 > other['x']-MOVE['width']/2
                                  and y < other['y']+MOVE['height'] and y+1 > other['y']), 'A player is standing there.')
-        if tile == 'crop':
+        if ITEMS[tile]['category'] == 'crop':
             require(w.tile(x, y+1) in ('dirt', 'grass', 'sand', 'snow'), 'Plant on earth, turf, sand, or snow.')
             w.crops[(x, y)] = self.clock()
             self.store.crop(w.name, x, y, self.clock())
@@ -260,13 +312,17 @@ class Game:
         self.store.tile(w.name, x, y, tile)
         self.emit('world:'+w.name, 'tile', x=x, y=y, item=tile, planted=w.crops.get((x, y)))
         self.inventory(p)
+        self.mechanics.event(p, 'build', item=tile)
+        if tile == 'core':
+            self.social.broadcast_directory()
 
     def mine(self, p, d):
         self.mutable_inventory(p)
         w, x, y = self.target(p, d)
         item = w.tile(x, y)
         require(item is not None, 'Nothing to mine here.')
-        require(y < HEIGHT-1, 'The bottom foundation is protected.')
+        require(y < w.height-1, 'The bottom foundation is protected.')
+        self.mechanics.validate_mine(w, x, y)
         require(item != 'core', 'World Cores cannot be mined in this slice.')
         require(not any(w.containers.get((x, y), [])), 'Empty the chest before mining it.')
         tool = p['inventory'][p['selected']]
@@ -289,6 +345,7 @@ class Game:
         valid = (w.tile(m['x'], m['y']) == m['item'] and w.allowed(p['id']) and p['trade'] is None
                  and math.hypot(m['x']+.5-p['x'], m['y']+.5-p['y']-.7) <= MOVE['reach']
                  and p['selected'] == m['slot'] and not any(w.containers.get((m['x'], m['y']), [])))
+        valid = valid and not self.mechanics.has_machine(w.name, m['x'], m['y'])
         valid = valid and (p['inventory'][p['selected']] or {}).get('id') == m['tool']
         if not valid:
             p['mining'] = None
@@ -298,11 +355,13 @@ class Game:
         x, y = m['x'], m['y']
         drop = {'id': secrets.token_hex(10), 'x': x+.5, 'y': y+.5,
                 'item': ITEMS[m['item']]['drop'], 'n': 1, 'ready': self.clock()+.15}
-        with self.store.transaction():
+        with self.transaction_events():
             self.store.tile(w.name, x, y, None)
             self.store.crop(w.name, x, y)
             self.store.db.execute('DELETE FROM containers WHERE world=? AND x=? AND y=?', (w.name, x, y))
             self.store.drop(w.name, drop)
+            self.mechanics.removed_tile(w.name, x, y)
+            self.mechanics.event(p, 'gather', item=m['item'])
         # Publish only after commit; a failed save cannot create a ghost drop or remove a tile.
         w.cells.pop((x, y))
         w.crops.pop((x, y), None)
@@ -313,13 +372,20 @@ class Game:
         self.emit('world:'+w.name, 'tile', x=x, y=y, item=None)
 
     def interact(self, p, d):
+        if self.mechanics.interact(p, d):
+            return
         self.mutable_inventory(p)
         w, x, y = self.target(p, d)
         item = w.tile(x, y)
-        if item == 'crop':
-            require(self.clock()-w.crops.get((x, y), self.clock()) >= ITEMS['crop']['growth'], 'Your sungrain is still growing.')
+        if ITEMS.get(item, {}).get('category') == 'crop':
+            crop = ITEMS[item]
+            require(self.clock()-w.crops.get((x, y), self.clock()) >= crop['growth'], 'This crop is still growing.')
             inv = deepcopy(p['inventory'])
-            require(add(inv, 'grain', 3) == 0 and add(inv, 'seed', 2) == 0, 'Make room for your harvest.')
+            harvest = crop.get('harvest', {'grain': 3, 'seed': 2}).copy()
+            if crop.get('harvest_seed'):
+                harvest[crop['harvest_seed']] = 2
+            for product, count in harvest.items():
+                require(add(inv, product, count) == 0, 'Make room for your harvest.')
             p['inventory'] = inv
             w.cells.pop((x, y))
             w.crops.pop((x, y))
@@ -327,7 +393,8 @@ class Game:
             self.store.crop(w.name, x, y)
             self.inventory(p)
             self.emit('world:'+w.name, 'tile', x=x, y=y, item=None)
-            self.emit(p['id'], 'notice', text='Harvested 3 sungrain + 2 seeds.')
+            self.mechanics.event(p, 'farm', item=item)
+            self.emit(p['id'], 'notice', text='Harvested '+crop['name']+'.')
         elif item == 'chest':
             inv = w.containers.setdefault((x, y), empty(12))
             self.emit(p['id'], 'storage', x=x, y=y, slots=inv)
@@ -342,19 +409,24 @@ class Game:
         self.mutable_inventory(p)
         recipe = RECIPES.get(d.get('recipe'))
         require(recipe is not None, 'Unknown recipe.')
+        count = integer(d.get('count', 1), 1, 50)
+        if recipe.get('duration', 0) > 0:
+            self.mechanics.start_from_recipe(p, d)
+            return
         if station := recipe.get('station'):
             w = self.world(p['world'])
-            require(any(w.tile(x, y) == station for x in range(max(0, int(p['x'])-5), min(WIDTH, int(p['x'])+6))
-                        for y in range(max(0, int(p['y'])-5), min(HEIGHT, int(p['y'])+6))
+            require(any(w.tile(x, y) == station for x in range(max(0, int(p['x'])-5), min(w.width, int(p['x'])+6))
+                        for y in range(max(0, int(p['y'])-5), min(w.height, int(p['y'])+6))
                         if math.hypot(x+.5-p['x'], y+.5-p['y']-.7) <= MOVE['reach']), 'Stand near a '+ITEMS[station]['name']+'.')
         inv = deepcopy(p['inventory'])
         for item, n in recipe['ingredients'].items():
-            remove(inv, item, n)
-        require(add(inv, recipe['output'], recipe['amount']) == 0, 'Make room in your inventory.')
+            remove(inv, item, n * count)
+        require(add(inv, recipe['output'], recipe['amount'] * count) == 0, 'Make room in your inventory.')
         p['inventory'] = inv
         p['mining'] = None
         self.inventory(p)
-        self.store.audit('craft', [p['id']], {'recipe': recipe['id']})
+        self.mechanics.event(p, 'craft', amount=count)
+        self.store.audit('craft', [p['id']], {'recipe': recipe['id'], 'count': count})
         self.emit(p['id'], 'notice', text='Crafted '+ITEMS[recipe['output']]['name']+'.')
 
     def storage(self, p, d):
@@ -386,6 +458,9 @@ class Game:
         self.emit('world:'+old, 'departure', id=p['id'], name=p['name'])
         self.emit(p['id'], 'world', world=target.snapshot(), player=self.public_player(p))
         self.emit(p['id'], 'notice', text='Welcome to '+name+'.')
+        self.mechanics.event(p, 'discover', item=name)
+        self.social.presence_changed(p['id'])
+        self.social.broadcast_directory()
         self.unload()
 
     def create_world(self, p, d):
@@ -393,10 +468,13 @@ class Game:
         name = normalize(d.get('world'))
         require(d.get('biome') in ('forest', 'desert', 'snow'), 'Choose a valid biome.')
         require(len(self.store.directory()) < 100, 'This development server has reached its 100-world limit.')
-        self.worlds[name] = self.store.create_world(name, d['biome'])
+        created = self.store.create_world(name, d['biome'])
+        created.meta.update(generation=2, width=256, height=80)
+        self.store.save_meta(created.meta)
+        self.worlds[name] = World(created.meta)
         p['last_create'] = self.clock()
         self.travel(p, {'world': name})
-        self.emit(p['id'], 'directory', worlds=self.store.directory())
+        self.social.broadcast_directory()
 
     def permissions(self, p, d):
         w = self.world(p['world'])
@@ -415,6 +493,7 @@ class Game:
         self.store.save_meta(w.meta)
         self.emit('world:'+w.name, 'metadata', meta=w.meta)
         self.emit(p['id'], 'notice', text='World permissions saved.')
+        self.social.broadcast_directory()
 
     def tick(self, dt):
         self.prune_invites()
@@ -480,7 +559,7 @@ class Game:
     def public_player(self, p):
         return {'id': p['id'], 'name': p['name'], **physics.snapshot(p),
                 'processed_input': p['processed_input'], 'ack_state': p['ack_state'], 'epoch': p['movement_epoch'],
-                'held': (p['inventory'][p['selected']] or {}).get('id'), 'mining': p['mining']}
+                'held': (p['inventory'][p['selected']] or {}).get('id'), 'mining': p['mining'], **self.mechanics.public(p)}
 
     def snapshot(self, world):
         return [self.public_player(p) for p in self.players.values() if p['world'] == world]

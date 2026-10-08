@@ -21,6 +21,10 @@ var server_offset := 0.0
 var storage := {}
 var trade := {}
 var is_admin := false
+var social := {}
+var progression := {}
+var portals := {}
+var latency := 0
 var predicted := {}
 var pending_inputs: Array = []
 var input_sequence := 0
@@ -46,6 +50,7 @@ func load_world(world: Dictionary, local_player: Dictionary = {}) -> void:
 	players.clear()
 	display_positions.clear()
 	storage.clear()
+	portals.clear()
 	predicted.clear()
 	pending_inputs.clear()
 	remote_samples.clear()

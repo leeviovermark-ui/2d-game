@@ -117,7 +117,7 @@ class SlowNetworkTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(writer, ticks, return_exceptions=True)
 
     async def test_overflow_closes_slow_client_and_remains_bounded(self):
-        gateway = Gateway(SimpleNamespace(outbox=[], players={}))
+        gateway = Gateway(SimpleNamespace(outbox=[], players={}, store=None))
         socket = object()
         queue = asyncio.Queue(maxsize=2)
         gateway.send_queues[socket] = queue

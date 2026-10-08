@@ -48,18 +48,100 @@ class Client:
         while time.monotonic()<deadline:
             if predicate(): return
             await asyncio.sleep(.05)
-        await self.page.screenshot(path=str(ARTIFACTS/'smoke-failure.png'))
+        # A recovery code is a credential. Never capture its modal, even when
+        # a test fails, and never include packet contents in failure output.
+        if not await self.page.evaluate("() => (window.worldforge_controls || []).some(c => c.text === 'I have saved it — enter the world' || c.placeholder === 'Start with a letter · 3–20 characters')"):
+            await self.page.screenshot(path=str(ARTIFACTS/'smoke-failure.png'))
         raise AssertionError('Timed out: '+description+'; runtime errors: '+str(self.errors)+'; server errors: '+str([m['text'] for m in self.messages if m['type']=='error']))
 
+    async def controls(self):
+        return await self.page.evaluate('() => window.worldforge_controls || []')
+
+    async def control(self,kind=None,text=None,placeholder=None,name=None,contains=None,enabled=False,timeout=8):
+        deadline = time.monotonic()+timeout
+        while time.monotonic()<deadline:
+            for c in await self.controls():
+                if kind is not None and c.get('kind') != kind: continue
+                if text is not None and c.get('text') != text: continue
+                if placeholder is not None and c.get('placeholder') != placeholder: continue
+                if name is not None and c.get('name') != name: continue
+                if contains is not None and contains not in c.get('text',''): continue
+                if enabled and c.get('disabled',False): continue
+                r=c.get('rect',{})
+                if r.get('w',0)>0 and r.get('h',0)>0: return c
+            await asyncio.sleep(.08)
+        descriptions=[(c.get('kind'),c.get('text') or c.get('placeholder') or c.get('name')) for c in await self.controls()]
+        # Descriptions contain labels/placeholders only, never input values.
+        raise AssertionError(f'Missing visible control: {kind}, {text}, {placeholder}, {name}; controls={descriptions}')
+
+    async def click(self,text=None,**query):
+        # Server replies can rebuild a modal before the periodic read-only
+        # inspector has published its new positions.
+        await asyncio.sleep(.3)
+        c=await self.control(text=text,enabled=True,**query)
+        r=c['rect']
+        await self.page.mouse.click(r['x']+r['w']/2,r['y']+r['h']/2)
+        await asyncio.sleep(.15)
+
+    async def fill(self,value,placeholder=None,name=None):
+        c=await self.control(kind='LineEdit',placeholder=placeholder,name=name)
+        r=c['rect']
+        await self.page.mouse.click(r['x']+r['w']/2,r['y']+r['h']/2)
+        await self.page.keyboard.press('Control+a')
+        await self.page.keyboard.type(value)
+        await asyncio.sleep(.12)
+
+    async def choose(self,name,value):
+        c=await self.control(kind='OptionButton',name=name)
+        if name is None:
+            c=next((candidate for candidate in await self.controls()
+                    if candidate.get('kind')=='OptionButton' and value in candidate.get('options',[])),c)
+        choices=c.get('options',[])
+        assert value in choices, f'Missing dropdown option {value}'
+        r=c['rect']
+        await self.page.mouse.click(r['x']+r['w']/2,r['y']+r['h']/2)
+        await asyncio.sleep(.4)
+        # Godot consumes key transitions on engine frames. Distinct dropdown
+        # presses must span a frame, including on software-rendered browsers.
+        # PopupMenu starts with no focused item; its first Down focuses row 0.
+        for _ in range(choices.index(value)+1):
+            await self.page.keyboard.press('ArrowDown',delay=120)
+        await self.page.keyboard.press('Enter',delay=120)
+        deadline=time.monotonic()+2
+        while time.monotonic()<deadline:
+            selected=next((candidate for candidate in await self.controls() if candidate.get('path')==c.get('path')),None)
+            if selected and selected.get('selected')==choices.index(value): return
+            await asyncio.sleep(.1)
+        await self.page.screenshot(path=str(ARTIFACTS/'smoke-dropdown-failure.png'))
+        raise AssertionError('Dropdown did not select '+value)
+
+    async def recipe_button(self,title,text='Craft'):
+        label=await self.control(kind='Label',text=title)
+        label_rect=label['rect']
+        controls=await self.controls()
+        buttons=[c for c in controls if c.get('kind')=='Button' and c.get('text')==text and not c.get('disabled',False)
+                 and c['rect']['x']>label_rect['x'] and abs(c['rect']['y']-label_rect['y'])<45]
+        assert len(buttons)==1, 'Cannot locate the enabled action for exact recipe '+title
+        r=buttons[0]['rect']
+        await self.page.mouse.click(r['x']+r['w']/2,r['y']+r['h']/2)
+        await asyncio.sleep(.15)
+
+    async def submit_account(self,name,password,register=False):
+        await self.fill(name,placeholder='Start with a letter · 3–20 characters')
+        await self.fill(password,placeholder='At least 8 characters')
+        if register: await self.fill(password,placeholder='Confirm password')
+        await self.click('Create account & play  →' if register else 'Sign in & play  →',kind='Button')
+
+    async def dismiss_recovery(self):
+        await self.click('I have saved it — enter the world',kind='Button')
+
     async def login(self,url,name):
+        await self.page.add_init_script('window.worldforge_inspect = true;')
         await self.page.goto(url)
-        await asyncio.sleep(3)
-        await self.page.mouse.click(1110,324)
-        await self.page.keyboard.type(name)
-        await self.page.mouse.click(1110,397)
-        await self.page.keyboard.type('browser-smoke-password')
-        await self.page.mouse.click(1120,562)
+        await self.click('Play WORLDFORGE  →',kind='Button',timeout=25)
+        await self.submit_account(name,'browser-smoke-password',register=True)
         await self.wait(lambda:self.id is not None,'Godot account creation')
+        await self.dismiss_recovery()
         await self.wait(lambda:len(self.players)>0,'Godot player snapshot')
         await asyncio.sleep(.6)
 
@@ -109,8 +191,10 @@ async def run():
                 await a.login(url,'Aster')
                 await b.login(url,'Briar')
                 await a.wait(lambda:len(a.players)==2,'both real players synchronized')
-                await b.move('a',.55)
-                assert b.position()['x']<10.5, 'Movement input did not reach the server'
+                await b.page.keyboard.down('a')
+                await b.wait(lambda:b.position()['x']<10.5,'held movement reaches authoritative position',timeout=3)
+                await b.page.keyboard.up('a')
+                await asyncio.sleep(.65)
                 await a.key('j')  # Keep terrain targeting clear of the field-notes panel.
                 await a.key('2')
                 await a.point(12,20)
@@ -135,9 +219,10 @@ async def run():
                 await a.page.screenshot(path=str(ARTIFACTS/'inventory.png'))
                 await a.key('Escape')
                 await a.key('c')
+                await a.fill('Cedar planks',placeholder='Find a recipe, material, or station')
                 await a.page.screenshot(path=str(ARTIFACTS/'crafting.png'))
                 before = a.quantity('planks')
-                await a.page.mouse.click(980,282)
+                await a.recipe_button('Cedar planks  ×4')
                 await a.wait(lambda:a.quantity('planks')==before+4,'craft button produces real items')
                 await a.key('Escape')
                 await a.move('d',.16)
@@ -150,44 +235,43 @@ async def run():
                 await a.page.mouse.click(443,336)  # Withdraw first chest slot.
                 await a.wait(lambda:a.quantity('wood')==wood_before,'atomic storage withdrawal')
                 await a.page.screenshot(path=str(ARTIFACTS/'storage.png'))
+                print('Legacy QA: movement, planting/building, inventory drag/split, crafting and atomic storage passed.',flush=True)
                 await a.key('Escape')
                 await a.key('m')
                 await a.wait(lambda:'directory' in a.last,'world directory')
                 await a.page.screenshot(path=str(ARTIFACTS/'worlds.png'))
                 await a.key('Escape')
                 await a.key('p')
+                await a.click('Nearby',kind='Button')
                 await a.page.screenshot(path=str(ARTIFACTS/'social.png'))
-                await a.page.mouse.click(791,362)
+                await a.click('Trade',kind='Button')
                 await b.wait(lambda:'trade_invite' in b.last,'trade invite to real second client')
-                await b.page.mouse.click(1220,132)
+                await b.click(kind='Button',contains='wants to trade')
                 await a.wait(lambda:'trade' in a.last,'trade accepted by second client')
                 await b.wait(lambda:'trade' in b.last,'both trade screens')
                 await asyncio.sleep(.3)
                 await a.page.screenshot(path=str(ARTIFACTS/'trade.png'))
-                await a.page.mouse.click(780,431)
+                await a.click('Set item',kind='Button')
                 await a.wait(lambda:a.last['trade']['trade']['offers'][a.id]=={'wood_pick':1},'set exact pickaxe offer')
-                await b.page.mouse.click(515,431)
-                await b.page.keyboard.press('Home')
-                for _ in range(3): await b.page.keyboard.press('ArrowDown')
-                await b.page.keyboard.press('Enter')
-                await b.page.mouse.click(780,431)
+                await b.choose(None,'Cedar planks ('+str(b.quantity('planks'))+')')
+                await b.click('Set item',kind='Button')
                 await b.wait(lambda:b.last['trade']['trade']['offers'][b.id]=={'planks':1},'set exact planks offer')
                 a_pick,a_planks = a.quantity('wood_pick'),a.quantity('planks')
-                await a.page.mouse.click(555,480)
+                await a.click('Lock my offer',kind='Button')
                 await a.wait(lambda:a.id in a.last['trade']['trade']['locked'],'first trade lock')
-                await b.page.mouse.click(555,480)
+                await b.click('Lock my offer',kind='Button')
                 await b.wait(lambda:len(b.last['trade']['trade']['locked'])==2,'second trade lock')
-                await a.page.mouse.click(690,480)
+                await a.click('Confirm exchange',kind='Button')
                 await b.wait(lambda:a.id in b.last['trade']['trade']['confirmed'],'first trade confirmation')
-                await b.page.mouse.click(690,501)
+                await b.click('Confirm exchange',kind='Button')
                 await a.wait(lambda:'trade_closed' in a.last,'atomic browser trade exchange')
                 assert a.quantity('wood_pick')==a_pick-1 and a.quantity('planks')==a_planks+1
+                print('Legacy QA: exact two-player offers, locks and confirmed atomic trade passed.',flush=True)
                 await a.key('Escape')
                 # The world form and Core permissions must operate through the real UI.
                 await a.key('m')
-                await a.page.mouse.click(700,590)
-                await a.page.keyboard.type('HOME')
-                await a.page.mouse.click(720,690)
+                await a.fill('HOME',placeholder='MY_FIRST_WORLD')
+                await a.click('Create & enter',kind='Button')
                 await a.wait(lambda:a.world['meta']['name']=='HOME','create and travel to named world')
                 await asyncio.sleep(.8)
                 await a.key('8')
@@ -198,20 +282,20 @@ async def run():
                 await a.key('e')
                 await a.wait(lambda:'open_permissions' in a.last,'open World Core permissions')
                 await a.page.screenshot(path=str(ARTIFACTS/'permissions.png'))
-                await a.page.mouse.click(700,452)
-                await a.page.keyboard.type('Briar')
-                await a.page.mouse.click(720,503)
+                await a.fill('Briar',placeholder='ExplorerOne, ExplorerTwo')
+                await a.click('Save world permissions',kind='Button')
                 await a.wait(lambda:b.id in a.last['metadata']['meta']['builders'],'save builder permission')
                 await a.key('Escape')
                 await b.key('m')
-                await asyncio.sleep(.4)
-                await b.page.mouse.click(997,278)  # HOME sorts before NEXUS.
+                await b.fill('HOME',placeholder='Search worlds or their founders')
+                await b.click('Visit  →',kind='Button')
                 await b.wait(lambda:b.world['meta']['name']=='HOME','second player world travel')
                 await a.wait(lambda:len(a.players)==2,'both players in newly claimed world')
                 await a.page.screenshot(path=str(ARTIFACTS/'claimed-world.png'))
+                print('Legacy QA: new world, Core claim, builder permissions and second-player travel passed.',flush=True)
                 await a.key('m')
-                await asyncio.sleep(.4)
-                await a.page.mouse.click(997,320)
+                await a.fill('NEXUS',placeholder='Search worlds or their founders')
+                await a.click('Visit  →',kind='Button')
                 await a.wait(lambda:a.world['meta']['name']=='NEXUS','return to persistent planted world')
                 await asyncio.sleep(.8)
                 # Mine through mouse input; then jump over the placed block and collect.
@@ -240,8 +324,8 @@ async def run():
                 await a.page.keyboard.press('Enter')
                 # Return Briar to NEXUS before checking world-scoped chat delivery.
                 await b.key('m')
-                await asyncio.sleep(.4)
-                await b.page.mouse.click(997,320)
+                await b.fill('NEXUS',placeholder='Search worlds or their founders')
+                await b.click('Visit  →',kind='Button')
                 await b.wait(lambda:b.world['meta']['name']=='NEXUS','second client returns to shared refuge')
                 await a.key('Enter')
                 await a.page.keyboard.type('Welcome back to the meadow.')
@@ -252,8 +336,7 @@ async def run():
                 await a.page.reload()
                 await asyncio.sleep(3)
                 await a.page.screenshot(path=str(ARTIFACTS/'reconnect.png'))
-                # Resume is the last form button; current column puts it at y=674.
-                await a.page.mouse.click(1140,659)
+                await a.click('Continue as Aster',kind='Button',timeout=25)
                 await a.wait(lambda:len(a.last.get('welcome',{}).get('slots',[]))==30 and len([m for m in a.messages if m['type']=='welcome'])==2,'saved-session reconnect')
                 assert a.inventory == saved_inventory, 'Inventory did not persist across browser reload'
                 assert not a.errors and not b.errors, 'Godot browser runtime errors: '+str(a.errors+b.errors)

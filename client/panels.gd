@@ -4,6 +4,39 @@ var ui: ForgeUI
 var state: ForgeState
 var art: ForgeArt
 var admin_panel
+var catalogue
+var social_panel
+var gameplay_panel
+var craft_search: LineEdit
+var craft_category: OptionButton
+var craft_amount: SpinBox
+var craft_results: VBoxContainer
+var craft_scroll: ScrollContainer
+var craft_summary: Label
+var craft_rows := {}
+var icon_refresh_generation := 0
+
+func get_catalogue():
+	if not catalogue:
+		catalogue = load("res://client/world_catalogue.gd").new()
+		catalogue.ui = ui
+		catalogue.state = state
+	return catalogue
+
+func get_social():
+	if not social_panel:
+		social_panel = load("res://client/social_panel.gd").new()
+		social_panel.ui = ui
+		social_panel.state = state
+	return social_panel
+
+func get_gameplay():
+	if not gameplay_panel:
+		gameplay_panel = load("res://client/gameplay_panel.gd").new()
+		gameplay_panel.ui = ui
+		gameplay_panel.state = state
+		gameplay_panel.art = art
+	return gameplay_panel
 
 func open_admin(data: Dictionary) -> void:
 	if not admin_panel:
@@ -49,76 +82,146 @@ func open_inventory() -> void:
 	ui.refresh_inventory()
 
 func open_craft() -> void:
-	var body := ui.begin_modal("The workshop","craft",660,610)
-	body.add_child(ui.label("Make more from what you find. Stations must be within five tiles.",12,ui.MUTED))
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(scroll)
-	var list := ui.column(scroll,8)
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if ui.modal_kind == "craft" and is_instance_valid(craft_results):
+		refresh_craft()
+		return
+	var body := ui.begin_modal("The workshop","craft",840,660)
+	body.add_child(ui.label("Turn discoveries into possibilities. Stations must be within five tiles.",12,ui.MUTED))
+	var filters := HBoxContainer.new()
+	filters.add_theme_constant_override("separation",10)
+	body.add_child(filters)
+	craft_search = ui.input("Find a recipe, material, or station")
+	craft_search.name = "RecipeSearch"
+	craft_search.max_length = 40
+	craft_search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	filters.add_child(craft_search)
+	craft_category = OptionButton.new()
+	craft_category.name = "RecipeCategory"
+	for title in ["All recipes","Blocks","Tools","Stations","Food & farming","Outfits"]:
+		craft_category.add_item(title)
+	filters.add_child(craft_category)
+	filters.add_child(ui.label("Batches",11,ui.MUTED))
+	craft_amount = SpinBox.new()
+	craft_amount.name = "CraftBatches"
+	craft_amount.min_value = 1
+	craft_amount.max_value = 50
+	craft_amount.value = 1
+	craft_amount.custom_minimum_size.x = 80
+	filters.add_child(craft_amount)
+	craft_summary = ui.label("",11,ui.MUTED)
+	body.add_child(craft_summary)
+	craft_scroll = ScrollContainer.new()
+	craft_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(craft_scroll)
+	craft_scroll.get_v_scroll_bar().value_changed.connect(func(_value): schedule_recipe_icons())
+	craft_results = ui.column(craft_scroll,8)
+	craft_results.name = "RecipeResults"
+	craft_results.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	craft_rows.clear()
 	for recipe in state.recipes:
 		var panel := PanelContainer.new()
-		panel.add_theme_stylebox_override("panel",ui.box(Color("1d3032"),Color("3c504a"),12))
-		list.add_child(panel)
+		panel.add_theme_stylebox_override("panel",ui.box(Color("20515a"),Color("44887f"),12))
+		craft_results.add_child(panel)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation",13)
 		panel.add_child(row)
 		var icon := TextureRect.new()
-		icon.texture = art.icon(recipe.output,state.items[recipe.output])
 		icon.custom_minimum_size = Vector2(38,38)
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		row.add_child(icon)
 		var desc := ui.column(row,4)
 		desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		desc.add_child(ui.label(state.items[recipe.output].name+"  ×"+str(recipe.amount),14))
+		var title := ui.label("",15)
+		desc.add_child(title)
+		var materials := ui.label("",11,ui.MUTED)
+		materials.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.add_child(materials)
+		var station: Label = null
+		if recipe.has("station"):
+			station = ui.label("",11,ui.ACCENT)
+			station.text = "At " + state.items[recipe.station].name
+			desc.add_child(station)
+		var action := ui.button("Craft",func(): ui.intent.emit("craft",{"recipe":recipe.id,"count":int(craft_amount.value)}),true)
+		row.add_child(action)
+		craft_rows[recipe.id] = {"panel":panel,"icon":icon,"output":recipe.output,"title":title,"materials":materials,"station":station,"button":action}
+	craft_search.text_changed.connect(func(_text): refresh_craft())
+	craft_category.item_selected.connect(func(_index): refresh_craft())
+	craft_amount.value_changed.connect(func(_value): refresh_craft())
+	refresh_craft()
+
+func refresh_craft() -> void:
+	if ui.modal_kind != "craft" or not is_instance_valid(craft_results): return
+	var quantity := int(craft_amount.value)
+	var query := craft_search.text.strip_edges().to_lower()
+	var visible_count := 0
+	var ready_count := 0
+	for recipe in state.recipes:
+		if not craft_rows.has(recipe.id): continue
+		var nodes: Dictionary = craft_rows[recipe.id]
+		var definition: Dictionary = state.items[recipe.output]
+		var category := str(definition.category)
+		var category_matches := true
+		match craft_category.selected:
+			1: category_matches = category in ["block", "decoration"]
+			2: category_matches = category == "tool"
+			3: category_matches = category == "station"
+			4: category_matches = category in ["food", "seed", "crop", "resource", "material"]
+			5: category_matches = category in ["apparel", "equipment", "cosmetic", "outfit"]
+		var haystack := str(definition.name) + " " + str(definition.get("description", ""))
 		var materials := ""
 		var enough := true
 		for item in recipe.ingredients:
-			var n: int = state.owned(item)
-			materials += state.items[item].name+" "+str(n)+"/"+str(recipe.ingredients[item])+"   "
-			if n < recipe.ingredients[item]: enough = false
-		desc.add_child(ui.label(materials,11,ui.MUTED if enough else Color("be9582")))
+			var needed := int(recipe.ingredients[item]) * quantity
+			var owned: int = state.owned(item)
+			haystack += " " + str(state.items[item].name)
+			materials += str(state.items[item].name) + " " + str(owned) + "/" + str(needed) + "   "
+			if owned < needed: enough = false
+		var station_near := true
 		if recipe.has("station"):
-			desc.add_child(ui.label("Requires "+state.items[recipe.station].name,10,ui.MUTED))
-		var action := ui.button("Craft",func(): ui.intent.emit("craft",{"recipe":recipe.id}),enough)
-		action.disabled = not enough
-		row.add_child(action)
+			haystack += " " + str(state.items[recipe.station].name)
+			station_near = station_nearby(recipe.station)
+		nodes.panel.visible = category_matches and (query.is_empty() or haystack.to_lower().contains(query))
+		if nodes.panel.visible: visible_count += 1
+		nodes.title.text = str(definition.name) + "  ×" + str(int(recipe.amount) * quantity)
+		nodes.materials.text = materials
+		nodes.materials.add_theme_color_override("font_color",ui.MUTED if enough else Color("ffc1a4"))
+		var machine_recipe: bool = recipe.get("seconds", 0) > 0 or recipe.get("duration", 0) > 0 or recipe.get("process_time", 0) > 0
+		nodes.button.text = "Queue batch" if machine_recipe else "Craft"
+		if machine_recipe and quantity > 20: nodes.button.text = "Max 20 batches"
+		nodes.button.disabled = not enough or not station_near or (machine_recipe and quantity > 20)
+		if enough and station_near and nodes.panel.visible and not nodes.button.disabled: ready_count += 1
+		if recipe.has("station"):
+			nodes.station.text = ("Use " if machine_recipe else "At ") + str(state.items[recipe.station].name) + (" · nearby" if station_near else " · move closer")
+	craft_summary.text = str(visible_count) + " recipes shown  ·  " + str(ready_count) + " ready to craft  ·  " + str(quantity) + " batch" + ("es" if quantity != 1 else "")
+	schedule_recipe_icons()
+	ui.publish_modal_rects()
+
+func schedule_recipe_icons() -> void:
+	icon_refresh_generation += 1
+	refresh_visible_recipe_icons.call_deferred(icon_refresh_generation)
+
+func refresh_visible_recipe_icons(generation: int) -> void:
+	if not is_instance_valid(ui) or not ui.is_inside_tree(): return
+	await ui.get_tree().process_frame
+	if generation != icon_refresh_generation or not is_instance_valid(ui) or ui.modal_kind != "craft" or not is_instance_valid(craft_scroll): return
+	var visible_rect := craft_scroll.get_global_rect().grow(60)
+	for nodes in craft_rows.values():
+		if not is_instance_valid(nodes.panel) or not nodes.panel.visible or nodes.icon.texture != null: continue
+		if nodes.panel.get_global_rect().intersects(visible_rect): nodes.icon.texture = art.icon(nodes.output,state.items[nodes.output])
+
+func station_nearby(station: String) -> bool:
+	var position: Vector2 = state.display_positions.get(state.player_id,Vector2.ZERO)
+	for tile in state.tiles:
+		if state.tiles[tile] == station and Vector2(tile.x+.5,tile.y+.5).distance_to(position) <= float(state.movement.reach): return true
+	return false
 
 func open_worlds() -> void:
 	ui.intent.emit("directory",{})
 	render_worlds()
 
 func render_worlds() -> void:
-	var body := ui.begin_modal("Beyond your horizon","worlds",670,620)
-	body.add_child(ui.label("Visit a world, or start a new story. Names are unique across the server.",12,ui.MUTED))
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size.y = 180
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(scroll)
-	var list := ui.column(scroll,7)
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for world in ui.directory:
-		var row := HBoxContainer.new()
-		list.add_child(row)
-		var desc := ui.column(row,3)
-		desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		desc.add_child(ui.label(world.name,16))
-		desc.add_child(ui.label(world.biome.capitalize()+"  /  "+("Unclaimed" if world.owner == null else "Founded by "+world.owner_name),11,ui.MUTED))
-		row.add_child(ui.button("Visit  →",func(): ui.intent.emit("travel",{"world":world.name}); ui.close_modal()))
-	body.add_child(HSeparator.new())
-	body.add_child(ui.label("CREATE A WORLD",10,ui.ACCENT))
-	var name_field := ui.input("MY_FIRST_WORLD")
-	name_field.max_length = 20
-	body.add_child(name_field)
-	var biome := OptionButton.new()
-	biome.custom_minimum_size.y = 36
-	for value in ["Forest · cedar groves & green meadows","Desert · warm dunes & open sky","Snow · quiet pines & frozen peaks"]:
-		biome.add_item(value)
-	body.add_child(biome)
-	body.add_child(ui.button("Create & enter world",func():
-		ui.intent.emit("create_world",{"world":name_field.text,"biome":["forest","desert","snow"][biome.selected]}),true))
-	body.add_child(ui.label("Place a World Core to claim your world and manage builder access.",11,ui.MUTED))
+	get_catalogue().open()
 
 func open_storage() -> void:
 	var body := ui.begin_modal("Cedar storage","storage",660,560)
@@ -177,19 +280,47 @@ func open_permissions() -> void:
 	body.add_child(ui.label("Builder access includes crafting stations and chest contents.\nOwnership remains with the explorer who placed the Core.",12,ui.MUTED))
 
 func open_social() -> void:
-	var body := ui.begin_modal("Around the campfire","social",560,450)
-	body.add_child(ui.label("Real explorers in your current world. Meet nearby to trade.",12,ui.MUTED))
-	for p in state.players.values():
-		if p.id == state.player_id: continue
-		var row := HBoxContainer.new()
-		body.add_child(row)
-		var name_tag := ui.label(p.name,16)
-		name_tag.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(name_tag)
-		row.add_child(ui.button("Trade",func(): ui.intent.emit("trade_request",{"player":p.id})))
-		row.add_child(ui.button("Block / unblock chat",func(): ui.intent.emit("ignore",{"player":p.id})))
-	if state.players.size() <= 1:
-		body.add_child(ui.label("You have this world to yourself.\nA second client can connect to the same server address.",14,ui.MUTED))
+	get_social().open()
+
+func refresh_social(data: Dictionary) -> void:
+	get_social().refresh(data)
+
+func receive_private_message(data: Dictionary) -> void:
+	get_social().receive_message(data)
+
+func receive_world_invite(data: Dictionary) -> void:
+	get_social().receive_invite(data)
+
+func clear_private() -> void:
+	if social_panel: social_panel.reset()
+	if gameplay_panel: gameplay_panel.reset()
+	if catalogue: catalogue.reset()
+	if admin_panel: admin_panel.reset()
+	ui.directory.clear()
+	ui.current_invite = ""
+	craft_rows.clear()
+	craft_search = null
+	craft_category = null
+	craft_amount = null
+	craft_results = null
+	craft_scroll = null
+	craft_summary = null
+	icon_refresh_generation += 1
+
+func open_gameplay(data: Dictionary = {}) -> void:
+	get_gameplay().open(data)
+
+func refresh_gameplay(data: Dictionary) -> void:
+	get_gameplay().refresh(data)
+
+func open_machine(data: Dictionary) -> void:
+	get_gameplay().open_machine(data)
+
+func refresh_machine(data: Dictionary) -> void:
+	get_gameplay().refresh_machine(data)
+
+func open_portal(data: Dictionary) -> void:
+	get_gameplay().open_portal(data)
 
 func show_invite(data: Dictionary) -> void:
 	ui.current_invite = data.player
@@ -250,21 +381,23 @@ func open_trade() -> void:
 	body.add_child(ui.button("Cancel trade safely",func(): ui.intent.emit("trade_cancel",{"trade_id":trade.id})))
 
 func open_settings() -> void:
-	var body := ui.begin_modal("Around the campfire","settings",560,430)
+	var body := ui.begin_modal("Make yourself at home","settings",600,550)
 	var toggle := CheckButton.new()
 	toggle.text = "Interaction sounds"
 	toggle.button_pressed = ui.sound
 	toggle.toggled.connect(func(value): ui.sound = value; ui.audio_changed.emit(value))
 	body.add_child(toggle)
 	body.add_child(ui.button("Explorers & trading  [P]",func(): open_social()))
+	body.add_child(ui.button("Explorer journal & equipment  [L]",func(): open_gameplay()))
+	body.add_child(ui.button("Account & saved sessions",func(): ui.open_account()))
 	body.add_child(ui.button("World permissions",func(): open_permissions()))
 	body.add_child(ui.button("Controls & field guide  [H]",func(): open_help()))
 	body.add_child(ui.button("Disconnect & save",func(): ui.signed_out.emit()))
 	body.add_child(ui.label("Progress is saved on the server. Reconnect with your password\nor this device's saved session. Use WSS for remote servers.",12,ui.MUTED))
 
 func open_help() -> void:
-	var body := ui.begin_modal("An explorer's field guide","help",630,560)
-	body.add_child(ui.label("A / D or ← / →       Move\nSpace / W / ↑         Jump\nHold left mouse       Mine a nearby tile\nRight mouse           Place the selected block or plant a seed\nE                             Interact with the tile under your cursor\n1–9 / 0                    Select hotbar slot\nI / C / M                  Backpack / crafting / worlds\nP / Enter                 Nearby explorers / world chat\nJ / Esc                    Field notes / close panel",14,ui.INK))
+	var body := ui.begin_modal("An explorer's field guide","help",710,650)
+	body.add_child(ui.label("A / D or ← / →       Move\nSpace / W / ↑         Jump · release for a shorter hop\nHold Shift                Sprint while you have energy\nHold left mouse       Mine a nearby tile\nRight mouse           Place the selected block or plant a seed\nE                             Harvest, open stations, chests, and portals\nG / F                        Fish nearby water / eat selected food\n1–9 / 0                    Select hotbar slot\nI / C / M                  Backpack / crafting / world catalogue\nP / Enter                 Friends & explorers / world chat\nL / K                        Explorer journal / minimap\nJ / Esc                    Field notes / close panel",14,ui.INK))
 	body.add_child(HSeparator.new())
 	body.add_child(ui.label("Find your footing",18,ui.ACCENT))
-	body.add_child(ui.label("Gather cedar logs and fiber from the trees. Your cedar pick can mine\nstone. Place a workbench, then craft a stone pick to reach iron.\nPlant sungrain on earth; it ripens in 90 seconds, even while offline.\nPress E to harvest or open a chest. Create a world, then place your\nWorld Core to claim it. Invite builders, meet explorers, and trade.",13,ui.MUTED))
+	body.add_child(ui.label("Gather cedar logs and fiber from the trees. Your cedar pick can mine\nstone. Place a workbench, then craft a stone pick to reach iron.\nPlant a garden on earth; crops grow even while you are away.\nUse processing stations for food, metals, and new building materials.\nCreate a world and place a World Core to manage builder access.\nPress L for new mechanics and goals, or P to invite a friend.",13,ui.MUTED))
