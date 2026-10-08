@@ -137,13 +137,21 @@ async def http_request(connection, request):
                     'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache'}), target.read_bytes())
 
 
+def install_shutdown_handlers(loop, stop):
+    """Windows Proactor loops don't implement add_signal_handler."""
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except NotImplementedError:
+            signal.signal(sig, lambda _signum, _frame: loop.call_soon_threadsafe(stop.set))
+
+
 async def main(args):
     store = Store(args.database)
     gateway = Gateway(Game(store))
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, stop.set)
+    install_shutdown_handlers(loop, stop)
     async with serve(gateway.connection, args.host, args.port, max_size=16384, max_queue=32,
                      ping_interval=20, ping_timeout=20, process_request=http_request, compression=None):
         LOG.info('WORLDFORGE listening on %s:%s (database: %s)', args.host, args.port, args.database)
